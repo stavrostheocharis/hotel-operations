@@ -39,14 +39,19 @@ pnpm db:seed               # demo group + property + location hierarchy from ../
 pnpm db:load-synthetic     # raw exports from ../data/out into signals
 pnpm db:normalize --eval   # rules-only normalisation of signals, scored against the answer key
 pnpm db:normalize --llm    # same, plus OpenAI for translation and leftovers (needs OPENAI_API_KEY)
+pnpm db:link --eval        # link signals into issues (rules only), scored against the answer key
+pnpm db:embed              # OpenAI embeddings for every signal text (needs OPENAI_API_KEY)
+pnpm db:link --embed --llm # linking with embeddings and the reasoning model on the gray zone
 pnpm db:test               # fresh test database, migrations, seed, load, normalise, vitest
 pnpm db:generate           # after editing src/db/schema/*.ts
 pnpm db:studio             # drizzle-kit studio
 ```
 
 Normalisation (language, location, category/topic, PII, translation) is described in
-[`docs/normalization.md`](docs/normalization.md). The LLM provider is OpenAI through the
-Vercel AI SDK; models are set in `.env` (`OPENAI_MODEL_FAST`, `OPENAI_MODEL_REASONING`).
+[`docs/normalization.md`](docs/normalization.md); linking signals into issues with recurrence
+and root cause in [`docs/linking.md`](docs/linking.md). The LLM provider is OpenAI through the
+Vercel AI SDK; models are set in `.env` (`OPENAI_MODEL_FAST`, `OPENAI_MODEL_REASONING`,
+`OPENAI_EMBEDDING_MODEL`).
 
 The synthetic exports are produced by `../data` (`cd ../data && uv sync && uv
 run python -m generator --seed 42 --out out/`).
@@ -130,6 +135,13 @@ src/
     llm.ts            LlmClient interface, OpenAI (AI SDK) and fake implementations
     pipeline.ts       the stages, writes derived columns + events + ai_suggestions
     eval.ts           scoring against data/out/answer_key.json
+  link/
+    rules.ts          candidate pairs: same place, serves, containment, clusters, leaks, stays, reviews
+    cluster.ts        union-find over accepted pairs
+    issues.ts         cluster → issue: root cause, closures, reopen evidence, status
+    embeddings.ts     OpenAI embeddings into signal_embeddings, cosine for gray pairs
+    pipeline.ts       rules → embeddings → model judge → clusters → issues/actions/outcomes/events
+    eval.ts           pairwise F1, issues found per scenario, agreement with the key
   hooks/use-mobile.ts
   lib/utils.ts        cn()
 ```
