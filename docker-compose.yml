@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: hotel-ops-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: hotel_ops
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - hotel_ops_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hotel_ops"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  hotel_ops_pgdata:

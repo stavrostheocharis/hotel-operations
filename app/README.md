@@ -26,6 +26,25 @@ pnpm lint
 pnpm exec tsc --noEmit
 ```
 
+## Database
+
+Postgres 16 with pgvector in Docker, Drizzle ORM, row-level security per
+property. Full description in [`docs/data-model.md`](docs/data-model.md).
+
+```bash
+cp .env.example .env
+pnpm db:up                 # start Postgres (docker compose, waits for healthy)
+pnpm db:migrate            # apply drizzle/ migrations
+pnpm db:seed               # demo group + property + location hierarchy from ../data
+pnpm db:load-synthetic     # raw exports from ../data/out into signals
+pnpm db:test               # fresh test database, migrations, seed, load, vitest
+pnpm db:generate           # after editing src/db/schema/*.ts
+pnpm db:studio             # drizzle-kit studio
+```
+
+The synthetic exports are produced by `../data` (`cd ../data && uv sync && uv
+run python -m generator --seed 42 --out out/`).
+
 ## Where the theme lives
 
 | What | Where |
@@ -92,6 +111,11 @@ src/
     ui/               shadcn components, restyled
     theme-provider.tsx
     theme-toggle.tsx
+  db/
+    index.ts          createDb(), withTenant(), getAppDb(), getAdminDb()
+    schema/           Drizzle tables and enums (one file per area)
+    scripts/          migrate, seed, load-synthetic (+ lib/ readers and helpers)
+    __tests__/        vitest suite against a real Postgres
   hooks/use-mobile.ts
   lib/utils.ts        cn()
 ```
