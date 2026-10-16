@@ -5,7 +5,7 @@ import { dataDir } from "../scripts/lib/paths";
 import { findProperty } from "../scripts/seed";
 import { evaluateNormalization, formatReport, type EvalReport } from "@/normalize/eval";
 import { createFakeLlm } from "@/normalize/llm";
-import { normalizeSignals, type NormalizeResult } from "@/normalize/pipeline";
+import { normalizeSignals, resetNormalization, type NormalizeResult } from "@/normalize/pipeline";
 import { TEST_URL } from "./env";
 
 let db: Db;
@@ -18,6 +18,9 @@ beforeAll(async () => {
   const p = await findProperty(db);
   if (!p) throw new Error("seed missing");
   propertyId = p.id;
+  // The global setup already normalised everything; start from scratch here.
+  await resetNormalization(db, propertyId);
+  await db.delete(schema.aiSuggestions).where(eq(schema.aiSuggestions.propertyId, propertyId));
   result = await normalizeSignals(db, { llm: createFakeLlm() });
   report = await evaluateNormalization(db, propertyId, dataDir());
   console.log("\n" + formatReport(report) + "\n");
@@ -43,12 +46,13 @@ describe("normalisation pipeline (rules + fake LLM)", () => {
     expect(open).toBe(0);
   });
 
-  it("writes a signal.normalized event per signal", async () => {
+  it("writes a signal.normalized event per signal and per run", async () => {
     const [{ e }] = await db
       .select({ e: sql<number>`count(*)::int` })
       .from(schema.events)
       .where(sql`${schema.events.propertyId} = ${propertyId} and ${schema.events.type} = 'signal.normalized'`);
-    expect(e).toBe(result.processed);
+    // Two runs so far: the global setup and this file's beforeAll.
+    expect(e).toBe(result.processed * 2);
   });
 
   it("detects the language of guest and staff text", () => {

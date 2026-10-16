@@ -3,6 +3,8 @@ import { createDb } from "../index";
 import { loadSynthetic } from "../scripts/load-synthetic";
 import { runMigrations } from "../scripts/migrate";
 import { seed } from "../scripts/seed";
+import { createFakeLlm } from "@/normalize/llm";
+import { normalizeSignals } from "@/normalize/pipeline";
 import { TEST_URL } from "./env";
 
 /**
@@ -28,6 +30,7 @@ export async function setup() {
     await runMigrations(db);
     await seed(db);
     await loadSynthetic(db);
+    await normalizeSignals(db, { llm: createFakeLlm() });
     console.log(`test database ready in ${Date.now() - t0} ms`);
   } finally {
     await db.$client.end();
