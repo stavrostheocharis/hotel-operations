@@ -15,7 +15,9 @@
     "db:load-synthetic": "tsx src/db/scripts/load-synthetic.ts",
     "db:studio": "drizzle-kit studio",
     "db:test": "vitest run",
-    "db:normalize": "tsx src/db/scripts/normalize.ts"
+    "db:normalize": "tsx src/db/scripts/normalize.ts",
+    "db:embed": "tsx src/db/scripts/embed.ts",
+    "db:link": "tsx src/db/scripts/link.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.95",
