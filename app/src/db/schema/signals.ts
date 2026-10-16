@@ -46,6 +46,16 @@ export const signals = pgTable(
       .notNull()
       .default("none"),
     category: text("category"),
+    /** Finer than category: "no_hot_water", "keycard_fails". Derived. */
+    topic: text("topic"),
+    /** 0–1 confidence of the language detection. Derived. */
+    languageConfidence: numeric("language_confidence", {
+      precision: 4,
+      scale: 3,
+    }),
+    /** What normalisation found: extracted room numbers, keyword hits, pii redactions, stage versions. Derived. */
+    normalized: jsonbObject("normalized"),
+    normalizedAt: timestamp("normalized_at", { withTimezone: true }),
     raw: jsonbObject("raw"),
     ingestBatchId: text("ingest_batch_id"),
     createdAt: createdAt(),
