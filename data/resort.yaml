@@ -1,0 +1,182 @@
+# Fictional resort used by the synthetic season-data generator.
+# Nothing in this file refers to a real property, company or person.
+
+resort:
+  name: "Astraea Bay Resort & Villas"
+  short_name: "Astraea Bay"
+  region: "Mirabello coast, Crete (fictional)"
+  stars: 5
+  season_open: 2026-04-01
+  season_close: 2026-10-31
+  timezone: "Europe/Athens"
+
+# Buildings. Room numbers are unique across the property; the first digit is the floor,
+# the remaining two digits identify the room, and each wing owns a contiguous block of
+# numbers on each floor. Villas are numbered V01..V20.
+buildings:
+  - code: A
+    name: "Main Building"
+    marketing_name: "Main Building"
+    greek_name: "Κεντρικό"
+    floors: [1, 2, 3]
+    rooms_per_floor: 30
+    first_room_on_floor: 1          # A: x01..x30
+    room_types:
+      - {type: "Classic Garden View", view: "garden", share: 0.40}
+      - {type: "Superior Sea View", view: "sea", share: 0.35}
+      - {type: "Junior Suite", view: "sea", share: 0.25}
+  - code: B
+    name: "Garden Wing"
+    marketing_name: "Garden Wing"
+    greek_name: "Κήπος"
+    floors: [1, 2, 3]
+    rooms_per_floor: 30
+    first_room_on_floor: 31         # B: x31..x60
+    room_types:
+      - {type: "Classic Garden View", view: "garden", share: 0.50}
+      - {type: "Family Suite", view: "garden", share: 0.30}
+      - {type: "Superior Pool View", view: "pool", share: 0.20}
+  - code: C
+    name: "Sea Wing"
+    marketing_name: "Sea Wing"
+    greek_name: "Θάλασσα"
+    floors: [1, 2, 3]
+    rooms_per_floor: 20
+    first_room_on_floor: 61         # C: x61..x80
+    room_types:
+      - {type: "Superior Sea View", view: "sea", share: 0.55}
+      - {type: "Deluxe Sea View Suite", view: "sea", share: 0.30}
+      - {type: "Junior Suite", view: "side sea", share: 0.15}
+  - code: D
+    name: "Cliff Wing"
+    marketing_name: "Cliff Wing"
+    greek_name: "Βράχος"
+    floors: [1, 2]
+    rooms_per_floor: 19
+    first_room_on_floor: 81         # D: x81..x99
+    room_types:
+      - {type: "Deluxe Sea View Suite", view: "sea", share: 0.45}
+      - {type: "Suite with Private Pool", view: "sea", share: 0.35}
+      - {type: "Superior Sea View", view: "sea", share: 0.20}
+  - code: V
+    name: "Villas"
+    marketing_name: "Astraea Villas"
+    greek_name: "Βίλες"
+    floors: [0]
+    villas: 20                      # V01..V20, each with private pool
+    room_types:
+      - {type: "Two-Bedroom Pool Villa", view: "sea", share: 0.65}
+      - {type: "Three-Bedroom Pool Villa", view: "sea", share: 0.35}
+
+facilities:
+  - {code: POOL-MAIN, name: "Main Pool", type: pool, area: "central gardens", notes: "lagoon-style, heated in shoulder season"}
+  - {code: POOL-INFINITY, name: "Infinity Pool (adults only)", type: pool, area: "Cliff Wing terrace", notes: "heated"}
+  - {code: SPA, name: "Thalassa Spa", type: spa, area: "Garden Wing ground floor", notes: "hammam, sauna, 6 treatment rooms"}
+  - {code: GYM, name: "Fitness Studio", type: gym, area: "Garden Wing ground floor"}
+  - {code: REST-ORIZONTAS, name: "Orizontas Restaurant", type: restaurant, area: "Main Building", notes: "breakfast buffet and themed dinners"}
+  - {code: REST-AMMOS, name: "Ammos Beach Taverna", type: restaurant, area: "beach", notes: "lunch and dinner, Cretan"}
+  - {code: REST-ELIA, name: "Elia Fine Dining", type: restaurant, area: "Sea Wing roof", notes: "dinner only, reservation required"}
+  - {code: BEACHBAR, name: "Kyma Beach Bar", type: bar, area: "beach", notes: "DJ sets in high season"}
+  - {code: LOBBY, name: "Lobby & Reception", type: public, area: "Main Building"}
+  - {code: KIDS, name: "Kids Club", type: kids, area: "central gardens"}
+  - {code: PARKING, name: "Guest Parking", type: outdoor, area: "entrance"}
+
+# Shared equipment. ``serves`` is what the engine should resolve a failure to.
+equipment:
+  - {id: A-BOILER, building: A, type: boiler, name: "Main Building hot-water boiler + 2x1500L tanks", location_text: "Bldg A plant room (basement)", serves: "all rooms in A, lobby, Orizontas kitchen", installed: 2014}
+  - {id: A-CHILLER, building: A, type: chiller, name: "Main Building chiller (fan-coil AC)", location_text: "Bldg A roof", serves: "all rooms in A, lobby, Orizontas", installed: 2014}
+  - {id: A-PUMP, building: A, type: water_pump, name: "Main Building booster pump set", location_text: "Bldg A plant room (basement)", serves: "all rooms in A", installed: 2019}
+  - {id: A-LIFT-1, building: A, type: elevator, name: "Main Building lift 1 (lobby side)", location_text: "Bldg A lobby", serves: "floors 0-3 A", installed: 2014}
+  - {id: A-LIFT-2, building: A, type: elevator, name: "Main Building lift 2 (garden side)", location_text: "Bldg A garden entrance", serves: "floors 0-3 A", installed: 2014}
+  - {id: B-BOILER, building: B, type: boiler, name: "Garden Wing hot-water boiler", location_text: "Bldg B plant room", serves: "all rooms in B, spa, gym", installed: 2016}
+  - {id: B-CHILLER, building: B, type: chiller, name: "Garden Wing chiller", location_text: "Bldg B roof", serves: "all rooms in B, spa, gym", installed: 2016}
+  - {id: B-PUMP, building: B, type: water_pump, name: "Garden Wing booster pump set", location_text: "Bldg B plant room", serves: "all rooms in B, spa", installed: 2016}
+  - {id: B-LIFT-1, building: B, type: elevator, name: "Garden Wing lift", location_text: "Bldg B core", serves: "floors 0-3 B", installed: 2016}
+  - {id: C-BOILER, building: C, type: boiler, name: "Sea Wing hot-water boiler + circulation pumps", location_text: "Bldg C boiler room (ground floor, north side)", serves: "all rooms in C, Elia kitchen", installed: 2011}
+  - {id: C-CHILLER, building: C, type: chiller, name: "Sea Wing chiller", location_text: "Bldg C roof", serves: "all rooms in C, Elia", installed: 2011}
+  - {id: C-PUMP, building: C, type: water_pump, name: "Sea Wing booster pump set", location_text: "Bldg C boiler room", serves: "all rooms in C", installed: 2020}
+  - {id: C-LIFT-1, building: C, type: elevator, name: "Sea Wing lift", location_text: "Bldg C core", serves: "floors 0-3 C and Elia roof", installed: 2011}
+  - {id: D-BOILER, building: D, type: boiler, name: "Cliff Wing hot-water boiler (solar-assisted)", location_text: "Bldg D plant room", serves: "all rooms in D", installed: 2018}
+  - {id: D-CHILLER, building: D, type: chiller, name: "Cliff Wing chiller", location_text: "Bldg D roof terrace, behind the infinity pool", serves: "all rooms in D", installed: 2018}
+  - {id: D-PUMP, building: D, type: water_pump, name: "Cliff Wing booster pump set", location_text: "Bldg D plant room", serves: "all rooms in D, infinity pool showers", installed: 2018}
+  - {id: D-LIFT-1, building: D, type: elevator, name: "Cliff Wing lift", location_text: "Bldg D core", serves: "floors 0-2 D and infinity pool terrace", installed: 2018}
+  - {id: POOLMAIN-FILTER, building: null, type: pool_plant, name: "Main pool filtration + dosing", location_text: "Main pool plant room", serves: "POOL-MAIN", installed: 2015}
+  - {id: POOLINF-HEATPUMP, building: null, type: heat_pump, name: "Infinity pool heat pump", location_text: "Bldg D roof terrace", serves: "POOL-INFINITY", installed: 2018}
+  - {id: SPA-HEATER, building: B, type: boiler, name: "Spa hammam steam generator + sauna heater", location_text: "Spa plant room", serves: "SPA", installed: 2016}
+  - {id: BEACHBAR-COLD, building: null, type: refrigeration, name: "Beach bar cold room + ice machine", location_text: "Kyma beach bar back-of-house", serves: "BEACHBAR", installed: 2017}
+  - {id: BEACHBAR-PA, building: null, type: audio, name: "Beach bar sound system", location_text: "Kyma beach bar", serves: "BEACHBAR", installed: 2022}
+  - {id: ELIA-AC, building: C, type: split_ac, name: "Elia dining room split units (x4)", location_text: "Sea Wing roof, Elia", serves: "REST-ELIA", installed: 2011}
+  - {id: AMMOS-GREASETRAP, building: null, type: drainage, name: "Ammos kitchen grease trap", location_text: "behind Ammos taverna", serves: "REST-AMMOS", installed: 2013}
+  - {id: LOCKS-CONTROLLER, building: A, type: access_control, name: "Door-lock server (key-card encoder)", location_text: "Back office, IT rack", serves: "all guest-room locks", installed: 2021}
+
+# Target share of rooms occupied at mid-month; interpolated day by day, with a weekly
+# arrival ripple (Sat/Sun/Thu charter days) and a little noise on top.
+occupancy_curve:
+  "2026-04": 0.34
+  "2026-05": 0.57
+  "2026-06": 0.79
+  "2026-07": 0.93
+  "2026-08": 0.97
+  "2026-09": 0.84
+  "2026-10": 0.47
+
+stay_length:
+  # nights; weights per bucket, shifted longer in July/August, shorter in April/October
+  base: {2: 0.08, 3: 0.14, 4: 0.17, 5: 0.19, 6: 0.14, 7: 0.20, 8: 0.03, 10: 0.03, 14: 0.02}
+
+# Guest language mix (share of stays). The language drives the free-text fields.
+languages:
+  en: 0.33
+  de: 0.24
+  fr: 0.12
+  it: 0.10
+  el: 0.09
+  ru: 0.06
+  he: 0.06
+
+# Monthly multipliers on the language mix (Italians and Greeks in August, Germans in
+# the shoulder months, French in July). Re-normalised per month.
+language_seasonality:
+  "2026-04": {de: 1.3, en: 1.1, el: 1.4, it: 0.5, fr: 0.7}
+  "2026-05": {de: 1.3, en: 1.1, el: 0.8, it: 0.6, fr: 0.8}
+  "2026-06": {de: 1.1, en: 1.0, fr: 0.9, it: 0.8}
+  "2026-07": {fr: 1.5, it: 1.1, he: 1.3, el: 0.8}
+  "2026-08": {it: 2.2, el: 1.8, fr: 1.3, de: 0.6, en: 0.8}
+  "2026-09": {de: 1.3, en: 1.1, it: 0.6, el: 0.7}
+  "2026-10": {de: 1.5, en: 1.2, el: 1.2, it: 0.4, fr: 0.6, he: 0.6}
+
+# Nationality (ISO 3166-1 alpha-2) given the language, with weights.
+nationalities:
+  en: {GB: 0.52, US: 0.17, NL: 0.09, IE: 0.05, SE: 0.04, DK: 0.03, NO: 0.03, AU: 0.03, CA: 0.02, PL: 0.02}
+  de: {DE: 0.74, AT: 0.16, CH: 0.10}
+  fr: {FR: 0.80, BE: 0.13, CH: 0.07}
+  it: {IT: 0.97, CH: 0.03}
+  el: {GR: 0.90, CY: 0.10}
+  ru: {RU: 0.35, IL: 0.20, KZ: 0.15, CY: 0.12, DE: 0.10, LV: 0.08}
+  he: {IL: 1.0}
+
+# Signal volumes (per occupied-room-night unless stated) for the unrelated background noise.
+noise_rates:
+  work_orders_per_occupied_room_night: 0.022   # ~6-7 tickets/day at full house
+  preventive_work_orders_per_week: 4
+  front_desk_entries_per_occupied_room_night: 0.009
+  survey_response_rate: 0.31
+  review_rate: 0.075
+  survey_comment_rate: 0.58          # share of survey responses with a non-empty comment
+  survey_complaint_share: 0.18       # of commented noise surveys, share that mention a one-off problem
+  review_complaint_share: 0.30       # of noise reviews, share that mention a one-off problem
+
+# Messiness knobs for the exports
+messiness:
+  wo_wrong_category_rate: 0.22
+  wo_other_category_rate: 0.14
+  wo_empty_closure_rate: 0.18
+  wo_trivial_closure_rate: 0.14      # "done", "ok", "έγινε"
+  wo_missing_reopened_rate: 0.45
+  wo_location_typo_rate: 0.025       # digit swaps in noise work-order locations only
+  wo_duplicate_rate: 0.03            # same problem logged twice (two departments)
+  fd_agent_note_rate: 0.55           # share of front-desk rows that carry an English paraphrase
+  fd_missing_room_rate: 0.06         # complaint about a facility logged without a room
+  fd_empty_resolution_rate: 0.30
+  review_room_number_rate: 0.03      # reviews that mention the room number
+  review_wing_mention_rate: 0.35

@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Next.js
+app/.next/
+app/out/
+app/next-env.d.ts
+.next/
+out/
+
+# Build / coverage
+build/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs / debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Vercel
+.vercel
+
+# Python (data/ work may use it)
+__pycache__/
+*.pyc
+.venv/
+venv/
