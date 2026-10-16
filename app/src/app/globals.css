@@ -213,3 +213,13 @@
     @apply bg-background text-foreground text-body;
   }
 }
+
+/* Printing the audit: the page is the PDF. */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  body {
+    background: white;
+  }
+}
