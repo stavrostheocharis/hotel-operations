@@ -14,6 +14,7 @@ import { LocationResolver } from "./lib/locations";
 import { dataDir } from "./lib/paths";
 import { stayRef } from "./lib/stay-ref";
 import { findProperty } from "./seed";
+import { scrubPii, scrubValue } from "@/normalize/pii";
 
 type SignalInsert = typeof schema.signals.$inferInsert;
 
@@ -65,7 +66,25 @@ export async function loadSynthetic(
   const skipped: Record<string, number> = {};
   const located: Record<string, number> = {};
 
-  const insertSignals = async (source: string, rows: SignalInsert[]) => {
+  const insertSignals = async (source: string, unscrubbed: SignalInsert[]) => {
+    // Personal data is removed before anything is stored: free text and every
+    // string in the raw row. Counts go to `normalized.pii_redactions`.
+    let piiRows = 0;
+    const rows: SignalInsert[] = unscrubbed.map((r) => {
+      const redactions: Record<string, number> = {};
+      const text = r.textOriginal ? scrubPii(r.textOriginal) : null;
+      if (text) for (const [k, n] of Object.entries(text.redactions)) redactions[k] = (redactions[k] ?? 0) + n;
+      const raw = scrubValue(r.raw ?? {}, redactions);
+      const touched = Object.keys(redactions).length > 0;
+      if (touched) piiRows++;
+      return {
+        ...r,
+        textOriginal: text ? text.text : r.textOriginal,
+        raw: raw.value,
+        ...(touched ? { normalized: { pii_redactions: redactions } } : {}),
+      };
+    });
+    if (piiRows) log(`${source}: personal data redacted in ${piiRows} rows`);
     let ins = 0;
     const CHUNK = 500;
     for (let i = 0; i < rows.length; i += CHUNK) {
