@@ -14,7 +14,10 @@ pnpm install
 pnpm dev
 ```
 
-- http://localhost:3000 — placeholder home page
+- http://localhost:3000 — the exceptions queue (needs a seeded, loaded, normalised
+  and linked database: the `db:*` commands below, in that order)
+- http://localhost:3000/issues/[id] — one issue: evidence, tickets, outcomes,
+  confirm / reject on every link ([docs/console.md](docs/console.md))
 - http://localhost:3000/design — live design-system reference (every token and
   component, light/dark toggle in the header)
 
@@ -116,10 +119,12 @@ src/
   app/
     layout.tsx        fonts, ThemeProvider, TooltipProvider
     globals.css       theme
-    page.tsx          placeholder home
+    page.tsx          / exceptions queue + KPIs
+    issues/[id]/      one issue: evidence, tickets, outcomes, confirm / reject
     design/           /design reference route
   components/
     ui/               shadcn components, restyled
+    console/          shell (header + nav), status and source badges
     theme-provider.tsx
     theme-toggle.tsx
   db/
@@ -127,6 +132,12 @@ src/
     schema/           Drizzle tables and enums (one file per area)
     scripts/          migrate, seed, load-synthetic, normalize (+ lib/ readers and helpers)
     __tests__/        vitest suite against a real Postgres
+  console/
+    tenant.ts         getCurrentTenant(): the demo property until sign-in exists
+    queries.ts        read models: listIssues, countIssues, getKpis, getIssue (all under withTenant)
+    decisions.ts      applyLinkDecision(): confirm / reject, pinned in link_decisions
+    actions.ts        the server action behind the buttons
+    format.ts         dates, durations, status → badge
   normalize/
     language.ts       franc + Greeklish detection
     pii.ts            email / phone / IBAN / card scrubbing at ingest

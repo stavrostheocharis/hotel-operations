@@ -7,7 +7,7 @@ import { LocationIndex, type LocationRow } from "@/normalize/location-rules";
 import { clusterPairs } from "./cluster";
 import { cosine, embeddingModelId, loadEmbeddings } from "./embeddings";
 import { buildIssue, type IssueDraft } from "./issues";
-import { ACCEPT, GRAY_LOW, attachOrphanReviews, generateCandidates, type ServesMap } from "./rules";
+import { ACCEPT, GRAY_LOW, attachOrphanReviews, generateCandidates, pairKey, type ServesMap } from "./rules";
 import { ACTIONABLE_SOURCES, type CandidatePair, type LinkSignal } from "./types";
 
 /**
@@ -154,8 +154,20 @@ export async function linkSignals(db: Db, opts: LinkOptions = {}): Promise<LinkR
   const byId = new Map(signals.map((s) => [s.id, s]));
   const asOf = opts.asOf ?? new Date(Math.max(...signals.map((s) => s.occurredAt.getTime())));
 
+  // Human decisions pin pairs across rebuilds: `unlink` removes a candidate,
+  // `link` is accepted outright.
+  const decisions = await db
+    .select({ a: schema.linkDecisions.signalA, b: schema.linkDecisions.signalB, decision: schema.linkDecisions.decision, by: schema.linkDecisions.decidedBy })
+    .from(schema.linkDecisions)
+    .where(eq(schema.linkDecisions.propertyId, property.id));
+  const unlinked = new Set(decisions.filter((d) => d.decision === "unlink").map((d) => pairKey(d.a, d.b)));
+  const pinned: CandidatePair[] = decisions
+    .filter((d) => d.decision === "link" && byId.has(d.a) && byId.has(d.b))
+    .map((d) => ({ a: d.a, b: d.b, score: 1, rule: "human", method: "human", evidence: { decided_by: d.by } }));
+
   // 1. Rules.
-  const candidates = generateCandidates(signals, index, serves);
+  const candidates = generateCandidates(signals, index, serves).filter((c) => !unlinked.has(pairKey(c.a, c.b)));
+  candidates.push(...pinned);
   const byRule: Record<string, number> = {};
   for (const c of candidates) byRule[c.rule] = (byRule[c.rule] ?? 0) + 1;
   const acceptedByRules = candidates.filter((c) => c.score >= ACCEPT).length;
@@ -226,7 +238,9 @@ export async function linkSignals(db: Db, opts: LinkOptions = {}): Promise<LinkR
   // 4. Clusters, then attach the reviews that can only be placed by context, then issues.
   const accepted = candidates.filter((c) => c.score >= ACCEPT);
   const firstPass = clusterPairs(signals.map((s) => s.id), accepted).map((ids) => ids.map((id) => byId.get(id)!));
-  const reviewLinks = attachOrphanReviews(signals.filter((s) => s.source === "review"), firstPass, buildingHints);
+  const reviewLinks = attachOrphanReviews(signals.filter((s) => s.source === "review"), firstPass, buildingHints).filter(
+    (c) => !unlinked.has(pairKey(c.a, c.b)),
+  );
   if (reviewLinks.length) {
     accepted.push(...reviewLinks);
     byRule["review-attach"] = reviewLinks.length;

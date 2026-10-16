@@ -9,4 +9,5 @@ export * from "./events";
 export * from "./ai";
 export * from "./embeddings";
 export * from "./occupancy";
+export * from "./decisions";
 export * from "./pii";
