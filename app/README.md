@@ -37,10 +37,16 @@ pnpm db:up                 # start Postgres (docker compose, waits for healthy)
 pnpm db:migrate            # apply drizzle/ migrations
 pnpm db:seed               # demo group + property + location hierarchy from ../data
 pnpm db:load-synthetic     # raw exports from ../data/out into signals
-pnpm db:test               # fresh test database, migrations, seed, load, vitest
+pnpm db:normalize --eval   # rules-only normalisation of signals, scored against the answer key
+pnpm db:normalize --llm    # same, plus OpenAI for translation and leftovers (needs OPENAI_API_KEY)
+pnpm db:test               # fresh test database, migrations, seed, load, normalise, vitest
 pnpm db:generate           # after editing src/db/schema/*.ts
 pnpm db:studio             # drizzle-kit studio
 ```
+
+Normalisation (language, location, category/topic, PII, translation) is described in
+[`docs/normalization.md`](docs/normalization.md). The LLM provider is OpenAI through the
+Vercel AI SDK; models are set in `.env` (`OPENAI_MODEL_FAST`, `OPENAI_MODEL_REASONING`).
 
 The synthetic exports are produced by `../data` (`cd ../data && uv sync && uv
 run python -m generator --seed 42 --out out/`).
@@ -114,8 +120,16 @@ src/
   db/
     index.ts          createDb(), withTenant(), getAppDb(), getAdminDb()
     schema/           Drizzle tables and enums (one file per area)
-    scripts/          migrate, seed, load-synthetic (+ lib/ readers and helpers)
+    scripts/          migrate, seed, load-synthetic, normalize (+ lib/ readers and helpers)
     __tests__/        vitest suite against a real Postgres
+  normalize/
+    language.ts       franc + Greeklish detection
+    pii.ts            email / phone / IBAN / card scrubbing at ingest
+    location-rules.ts regex location inference over the seeded hierarchy
+    taxonomy.ts       categories, topics and multilingual keyword rules
+    llm.ts            LlmClient interface, OpenAI (AI SDK) and fake implementations
+    pipeline.ts       the stages, writes derived columns + events + ai_suggestions
+    eval.ts           scoring against data/out/answer_key.json
   hooks/use-mobile.ts
   lib/utils.ts        cn()
 ```
