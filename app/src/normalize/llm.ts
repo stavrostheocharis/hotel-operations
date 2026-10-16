@@ -19,15 +19,24 @@ export type ClassifyResult = { id: string; category: string | null; topic: strin
 export type LocateItem = { id: string; text: string; source: string };
 export type LocateResult = { id: string; code: string | null; confidence: number };
 
+export type JudgeSide = { source: string; date: string; location: string | null; topic: string | null; text: string | null };
+export type JudgePair = { id: string; a: JudgeSide; b: JudgeSide; ruleHint: string };
+export type JudgeResult = { id: string; verdict: "same" | "related" | "unrelated"; confidence: number; reason: string };
+
 export interface LlmClient {
   readonly model: string;
+  /** Model used for pair judgments (linking); may equal `model`. */
+  readonly reasoningModel: string;
   readonly promptVersion: string;
   translate(items: TranslateItem[]): Promise<TranslateResult[]>;
   classify(items: ClassifyItem[]): Promise<ClassifyResult[]>;
   locate(items: LocateItem[], locations: { code: string; name: string; kind: string }[]): Promise<LocateResult[]>;
+  /** Do two records describe the same underlying problem? */
+  judgeLinks(pairs: JudgePair[]): Promise<JudgeResult[]>;
 }
 
 export const PROMPT_VERSION = "normalize-v1";
+export const LINK_PROMPT_VERSION = "link-v1";
 
 const SYSTEM = `You help a hotel operations team normalise guest and staff records.
 Hotel context: a Greek luxury resort with buildings (wings), rooms, villas, pools, a spa, restaurants, a beach bar and shared equipment (boilers, chillers, lifts, pumps).
@@ -37,6 +46,7 @@ Be literal and conservative. Never invent facts that are not in the text.`;
 export type OpenAiLlmOptions = {
   apiKey?: string;
   model?: string;
+  reasoningModel?: string;
   batchSize?: number;
   concurrency?: number;
 };
@@ -45,19 +55,27 @@ export function createOpenAiLlm(opts: OpenAiLlmOptions = {}): LlmClient {
   const apiKey = opts.apiKey ?? process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
   const modelId = opts.model ?? process.env.OPENAI_MODEL_FAST ?? "gpt-5.4-mini";
+  const reasoningModelId = opts.reasoningModel ?? process.env.OPENAI_MODEL_REASONING ?? "gpt-5.5";
   const openai = createOpenAI({ apiKey });
   const model = openai(modelId);
+  const reasoningModel = openai(reasoningModelId);
   const batchSize = opts.batchSize ?? 20;
   const concurrency = opts.concurrency ?? 4;
 
-  const call = async <T>(schema: z.ZodType<T>, prompt: string): Promise<T> => {
+  const call = async <T>(
+    schema: z.ZodType<T>,
+    prompt: string,
+    which: "fast" | "reasoning" = "fast",
+  ): Promise<T> => {
     const result = await generateObject({
-      model,
+      model: which === "fast" ? model : reasoningModel,
       schema,
       system: SYSTEM,
       prompt,
       maxRetries: 2,
-      providerOptions: { openai: { reasoningEffort: "low", textVerbosity: "low" } },
+      providerOptions: {
+        openai: { reasoningEffort: which === "fast" ? "low" : "medium", textVerbosity: "low" },
+      },
     });
     return result.object;
   };
@@ -65,9 +83,10 @@ export function createOpenAiLlm(opts: OpenAiLlmOptions = {}): LlmClient {
   const batched = async <I extends { id: string }, O>(
     items: I[],
     run: (batch: I[]) => Promise<O[]>,
+    size = batchSize,
   ): Promise<O[]> => {
     const batches: I[][] = [];
-    for (let i = 0; i < items.length; i += batchSize) batches.push(items.slice(i, i + batchSize));
+    for (let i = 0; i < items.length; i += size) batches.push(items.slice(i, i + size));
     const out: O[] = [];
     let next = 0;
     const workers = Array.from({ length: Math.min(concurrency, batches.length) }, async () => {
@@ -82,7 +101,30 @@ export function createOpenAiLlm(opts: OpenAiLlmOptions = {}): LlmClient {
 
   return {
     model: modelId,
+    reasoningModel: reasoningModelId,
     promptVersion: PROMPT_VERSION,
+
+    async judgeLinks(pairs) {
+      const schema = z.object({
+        items: z.array(
+          z.object({
+            id: z.string(),
+            verdict: z.enum(["same", "related", "unrelated"]),
+            confidence: z.number().min(0).max(1),
+            reason: z.string(),
+          }),
+        ),
+      });
+      return batched(
+        pairs,
+        async (batch) => {
+          const prompt = `Each item has two hotel records (a work order, a front-desk complaint, a survey comment or a review). Decide whether they describe the SAME underlying problem (one defect or one failing piece of equipment, reported more than once or by different people), a RELATED one (same place and kind of problem but plausibly a different fault), or UNRELATED. The rule that paired them is given as a hint; judge from the texts, places, topics and dates. Give a one-sentence reason.\n\n${JSON.stringify(batch)}`;
+          const res = await call(schema, prompt, "reasoning");
+          return res.items.map((r) => ({ id: r.id, verdict: r.verdict, confidence: r.confidence, reason: r.reason }));
+        },
+        10,
+      );
+    },
 
     async translate(items) {
       const schema = z.object({
@@ -156,7 +198,11 @@ export function createOpenAiLlm(opts: OpenAiLlmOptions = {}): LlmClient {
 export function createFakeLlm(): LlmClient {
   return {
     model: "fake",
+    reasoningModel: "fake",
     promptVersion: PROMPT_VERSION,
+    async judgeLinks(pairs) {
+      return pairs.map((p) => ({ id: p.id, verdict: "unrelated" as const, confidence: 0, reason: "fake judge" }));
+    },
     async translate(items) {
       return items.map((i) => ({ id: i.id, textEn: `[${i.language ?? "?"}→en] ${i.text}` }));
     },
