@@ -15,7 +15,11 @@ pnpm db:link --fake-llm                   # exercise the judge code path without
 ```
 
 Issues are derived data and are rebuilt from scratch for the property on
-every run; signals are the record.
+every run; signals are the record. Human decisions survive the rebuild
+because they are stored on signal pairs, not on issues: `link_decisions`
+(`link` / `unlink`, written by the console) is read at the start of every
+run — `unlink` pairs are removed from the candidates, `link` pairs are
+accepted outright with `rule = human`. See [console.md](console.md).
 
 ## Principle: the rules decide, the model only settles what they can't
 
@@ -112,9 +116,9 @@ pairs.
 ## What this step does not do
 
 - No incremental linking: every run rebuilds the property's issues.
-- No human review loop yet: `decided_by` is always `system`; the console
-  (next step) will let a supervisor confirm or reject a link, which then
-  pins it.
+- No review of the gray zone as a queue: the console lets a supervisor
+  confirm or reject a link on an issue page (which pins it), but there is no
+  "pairs the model was unsure about" list yet.
 - No verification outcomes above strength 1: those come from the staff app
   and the guest QR channel.
 - Episodes are not split into separate issues; a season-long facility
@@ -135,5 +139,7 @@ src/link/
   eval.ts         evaluateLinking(), formatLinkReport()
   __tests__/      rules and issue-building unit tests (no database)
 src/db/scripts/link.ts, embed.ts   the CLIs
+src/db/schema/decisions.ts         link_decisions: human link / unlink pins per signal pair
 src/db/__tests__/link.test.ts      integration test with score floors
+src/db/__tests__/console.test.ts   read models, and that pins survive a rebuild
 ```

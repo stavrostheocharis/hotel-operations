@@ -63,7 +63,7 @@ export function daysBetween(a: Date, b: Date): number {
   return Math.abs(a.getTime() - b.getTime()) / DAY;
 }
 
-function pairKey(a: string, b: string): string {
+export function pairKey(a: string, b: string): string {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
