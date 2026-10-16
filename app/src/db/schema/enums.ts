@@ -101,6 +101,7 @@ export const suggestionKind = pgEnum("suggestion_kind", [
   "locate",
   "summarize",
   "next_action",
+  "translate",
 ]);
 
 export const suggestionDecision = pgEnum("suggestion_decision", [

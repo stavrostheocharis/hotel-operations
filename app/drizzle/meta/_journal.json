@@ -22,6 +22,20 @@
       "when": 1792161117740,
       "tag": "0002_rls_roles_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792163280692,
+      "tag": "0003_signal_derived_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792164135638,
+      "tag": "0004_suggestion_kind_translate",
+      "breakpoints": true
     }
   ]
 }

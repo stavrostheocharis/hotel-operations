@@ -128,8 +128,9 @@ describe("synthetic loader", () => {
     const woLocated = get("work_order", "exact") + get("work_order", "alias");
     expect(woLocated).toBeGreaterThan(woTotal * 0.3);
     expect(woLocated).toBeLessThan(woTotal);
-    expect(get("survey", "none")).toBeGreaterThan(0);
-    expect(get("review", "none")).toBeGreaterThan(0);
+    // The loader never resolves surveys or reviews itself (normalisation may, later).
+    expect(get("survey", "exact") + get("survey", "alias")).toBe(0);
+    expect(get("review", "exact") + get("review", "alias")).toBe(0);
   });
 
   it("writes a signal.created event for every signal", async () => {
