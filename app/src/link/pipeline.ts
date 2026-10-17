@@ -32,6 +32,8 @@ export type LinkOptions = {
   log?: (msg: string) => void;
   /** The job this run belongs to, recorded on every issue it touched. */
   jobId?: string | null;
+  /** How many unsure pairs to leave for a person (default 300, best first). */
+  reviewLimit?: number;
 };
 
 export type LinkResult = {
@@ -46,6 +48,8 @@ export type LinkResult = {
   issues: number;
   multiSignalIssues: number;
   byRule: Record<string, number>;
+  /** Pairs left for a person to decide. */
+  forReview: number;
   /** How the rebuild met what was already there: see src/link/persist.ts. */
   reconcile: ReconcileResult;
 };
@@ -262,6 +266,31 @@ export async function linkSignals(db: Db, opts: LinkOptions = {}): Promise<LinkR
     pairsByCluster.set(key, arr);
   }
 
+  // 5. What is still unsure goes to a person: the review queue is the pending
+  // link suggestions, rewritten on every run (decided ones stay as history).
+  // A pair whose two records landed in the same cluster anyway needs no answer.
+  const unresolved = candidates
+    .filter((c) => c.score >= GRAY_LOW && c.score < ACCEPT && clusterOf.get(c.a) !== clusterOf.get(c.b))
+    .sort((x, y) => y.score - x.score)
+    .slice(0, opts.reviewLimit ?? 300);
+  await db
+    .delete(schema.aiSuggestions)
+    .where(and(eq(schema.aiSuggestions.propertyId, property.id), eq(schema.aiSuggestions.kind, "link"), eq(schema.aiSuggestions.decision, "pending")));
+  if (unresolved.length) {
+    const rows: (typeof schema.aiSuggestions.$inferInsert)[] = unresolved.map((c) => ({
+      ...tenant,
+      kind: "link",
+      inputRefs: { signal_ids: [c.a, c.b], rule: c.rule, score: Math.round(c.score * 1000) / 1000 },
+      output: { verdict: c.evidence.verdict ?? null, reason: c.evidence.reason ?? null, evidence: c.evidence },
+      model: c.method === "llm" && opts.llm ? opts.llm.reasoningModel : c.method === "embedding" ? "embeddings" : "rules",
+      promptVersion: LINK_PROMPT_VERSION,
+      confidence: c.score.toFixed(3),
+      decision: "pending",
+    }));
+    for (let i = 0; i < rows.length; i += 500) await db.insert(schema.aiSuggestions).values(rows.slice(i, i + 500));
+    log(`${unresolved.length} pairs left for review`);
+  }
+
   const drafts: IssueDraft[] = [];
   clusters.forEach((ids, i) => {
     const members = ids.map((id) => byId.get(id)!);
@@ -288,6 +317,7 @@ export async function linkSignals(db: Db, opts: LinkOptions = {}): Promise<LinkR
     issues: drafts.length,
     multiSignalIssues: multi,
     byRule,
+    forReview: unresolved.length,
     reconcile,
   };
 }

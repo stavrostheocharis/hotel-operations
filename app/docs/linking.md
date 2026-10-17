@@ -31,6 +31,13 @@ the issue again (`issue.status_changed` with `source: system`).
 `issue.detected`, `issue.reopened` and `issue.resolved` events are written
 once, not once per run.
 
+What the rules leave between 0.4 and 0.6 after embeddings and the model is
+not dropped: the best 300 pairs are written as pending `ai_suggestions` of
+kind `link` for a person to answer in the console's Review queue (the
+pending set is rewritten on every run; decided ones stay as history).
+Records a person linked by hand (`issue_signals.decided_by` ≠ system) are
+never rewritten, and an issue made only of such records is kept as it is.
+
 Human decisions on links survive the same way through `link_decisions`
 (`link` / `unlink`, written by the console), read at the start of every
 run — `unlink` pairs are removed from the candidates, `link` pairs are
@@ -132,9 +139,8 @@ pairs.
 
 - No incremental linking: every run recomputes the property's clusters
   (and then reconciles them with the existing issues, see above).
-- No review of the gray zone as a queue: the console lets a supervisor
-  confirm or reject a link on an issue page (which pins it), but there is no
-  "pairs the model was unsure about" list yet.
+- The review queue holds at most 300 pairs per run; the rest of the gray
+  zone is neither linked nor asked about.
 - No verification outcomes above strength 1: those come from the staff app
   and the guest QR channel.
 - Episodes are not split into separate issues; a season-long facility

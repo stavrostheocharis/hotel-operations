@@ -41,6 +41,33 @@ menu, or from a queue row. The sidebar badge on Verifications is the
 number due today.
 
 
+**Signals (`/signals`, `/signals/[id]`)** – "What came in, and did each
+record find its problem?" Every record as it arrived, newest first, with
+views *Unlinked* (a problem from a source that acts on its own — ticket,
+desk, staff, guest message — that sits in no issue), *Today* and *All*,
+and a toolbar in the URL (search by text, place or ticket number; source;
+category; dates; not English). A row opens the record in a side drawer
+(`?record=`; ↑/↓ walk the list): the text with its original, the place
+with how it was found and a *Change* picker, category and topic with a
+form, which issue it belongs to or — for a supervisor — the likely issues
+nearby (same place, the plant serving it, same category close in time)
+with a *Link* button each, a search over every issue, and *Create issue*
+(the record becomes the first report). A place or classification set by
+hand is locked: the next normalisation run leaves it alone
+(`signals.locked_fields`). Linking by hand pins the pair to the issue's
+first report, so the engine keeps them together.
+
+**Review (`/review`)** – "Are these two records the same problem?" The
+pairs the engine was not sure about (rule score between 0.4 and 0.6 after
+embeddings and the model, if any), one at a time, side by side: *Same
+problem* (S), *Not the same* (N), *Skip* (K). The answer is pinned in
+`link_decisions`; when exactly one side already sits in an issue the other
+is attached at once, when both sit in different issues the next linking
+run merges them, and the engine never asks about that pair again. The last
+decisions can be undone. The linker rewrites the pending queue on every
+run (`ai_suggestions`, kind `link`, decision `pending`, best first; at
+most 300); the sidebar badge is the count.
+
 **Issue (`/issues/[id]`)** – "What is this problem, who has it, and is it
 really fixed?" One line says what, where (and what the place serves),
 owner and department, open since when; the root cause sentence under it.
@@ -119,6 +146,11 @@ the person's name next to a confirmed link. Only roles with `links.decide`
   `queryIssues()` / `countIssueViews()` for the queue.
 - `src/components/verifications/done-sheet.tsx`, `src/components/exceptions/`
   (filter bar, row menu), `src/components/console/{view-tabs,pager}.tsx`.
+- `src/console/signals.ts` (list, views, record, likely issues, search,
+  places) and `signal-actions.ts` (relocate, reclassify, link, create);
+  `src/console/review.ts` (pairs, decide, undo) and `review-actions.ts`;
+  `src/components/signals/` (filter bar, drawer, record panel, tools) and
+  `src/components/review/review-deck.tsx`.
 - `src/console/actions.ts` – the `'use server'` action the buttons post to;
   it calls `applyLinkDecision` then `refresh()`.
 - `src/console/format.ts` – date, duration and label formatters, the

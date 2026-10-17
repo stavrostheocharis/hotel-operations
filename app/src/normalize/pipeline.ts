@@ -57,6 +57,7 @@ type SignalRow = {
   locationMethod: (typeof schema.locationMethod.enumValues)[number];
   raw: Record<string, unknown>;
   normalized: Record<string, unknown>;
+  lockedFields: string[];
 };
 
 type Place = { code: string; method: LocationHit["method"] | "stay" | "llm"; confidence: number; rule: string };
@@ -126,6 +127,7 @@ export async function normalizeSignals(db: Db, opts: NormalizeOptions = {}): Pro
         stayRef: schema.signals.stayRef,
         locationId: schema.signals.locationId,
         locationMethod: schema.signals.locationMethod,
+        lockedFields: schema.signals.lockedFields,
         raw: schema.signals.raw,
         normalized: schema.signals.normalized,
       })
@@ -313,9 +315,23 @@ export async function normalizeSignals(db: Db, opts: NormalizeOptions = {}): Pro
       bump(result.locationMethod, final ? final.method : "none");
     }
 
-    // Write back and log events, one transaction per page.
+    // Write back and log events, one transaction per page. Fields a person
+    // set by hand (signals.locked_fields) are left alone.
+    const lockedOf = new Map(page.map((s) => [s.id, new Set(s.lockedFields ?? [])]));
     await db.transaction(async (tx) => {
       for (const [id, upd] of updates) {
+        const locked = lockedOf.get(id);
+        if (locked?.size) {
+          if (locked.has("category") || locked.has("topic")) {
+            delete upd.category;
+            delete upd.topic;
+          }
+          if (locked.has("location")) {
+            delete upd.locationId;
+            delete upd.locationMethod;
+            delete upd.locationConfidence;
+          }
+        }
         await tx.update(schema.signals).set(upd).where(eq(schema.signals.id, id));
       }
       await tx.insert(schema.events).values(

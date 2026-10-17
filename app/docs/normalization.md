@@ -115,3 +115,10 @@ src/normalize/
 src/db/scripts/normalize.ts   the CLI
 src/db/__tests__/normalize.test.ts   integration test with score floors
 ```
+
+## Fields set by hand
+
+A supervisor can set a record's place or its category and topic from the
+console. Those fields are listed in `signals.locked_fields` and the
+pipeline leaves them alone on later runs (`src/normalize/pipeline.ts`,
+write-back): everything else about the record is still recomputed.

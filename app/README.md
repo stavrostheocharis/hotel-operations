@@ -26,8 +26,10 @@ not built yet say which step brings them.
   `/issues/[id]` one issue with its workflow, evidence, tickets, outcomes and
   activity ([docs/console.md](docs/console.md))
 - `/verifications` — the checks that prove a fix held, with the done form
-- `/signals`, `/review`, `/locations`, `/imports`, `/settings` — arriving in
-  steps 4–7
+- `/signals` — every record as it arrived, with a drawer to fix its place or
+  category, link it to an issue or start one; `/review` — the pairs the
+  engine was unsure about, one at a time
+- `/locations`, `/imports`, `/settings` — arriving in steps 5–7
 - `/reports/audit` — the season audit: baseline, recurring failures, fixes
   that did not hold, winter-works list, records assessment; print it for the
   PDF, export Markdown / CSV / JSON ([docs/audit.md](docs/audit.md))
