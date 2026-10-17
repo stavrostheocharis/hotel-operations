@@ -41,6 +41,7 @@ describe("migrations", () => {
       "public.link_decisions",
       "public.sessions",
       "public.user_credentials",
+      "public.verification_tasks",
       "pii.stay_keys",
     ]) {
       expect(names, `missing ${expected}`).toContain(expected);

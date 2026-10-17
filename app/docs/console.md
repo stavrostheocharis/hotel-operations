@@ -6,20 +6,40 @@ interaction is a supervisor confirming or rejecting a link the engine made.
 
 ## What is on screen
 
-**Exceptions (`/`)** – the queue, ranked by what came back: reopen count,
-then size, then recency.
+**Today (`/today`)** – "What needs a person today?" The header line says
+how many records arrived today, by source, and when the last import ran.
+Three lists of up to five rows each, with a link to the rest: **Came back
+in the last 7 days** (issues reopened, or with a `recurred` outcome, in
+the last week), **Open and unassigned** (open issues with no owner, the
+ones that came back most first; each row has the assign menu), and
+**Verifications due** (checks due today or overdue, with the done form).
+Department heads and staff see their department by default ("Mine") and
+can switch to all; managers see all.
 
-- Four figures at the top: issues currently reopened, the reopen rate
-  (issues ever reopened over issues that had a closure), repeats per 1,000
-  occupied room-nights (`outcomes.kind = 'recurred'` over
-  `occupancy_daily.rooms_occupied`), and the median hours from first signal
-  to ticket closure.
-- The same per category (issues, reopened, median hours), for categories
-  with at least five issues.
-- Filters: all · reopened · open · shared cause (issue sits on equipment, a
-  building or a floor) · closed, unverified. Each shows its count.
-- The table: title, where the cause sits, status, reopens, signals, which
-  sources contributed, first → last signal.
+**Exceptions (`/exceptions`)** – "Which problems are not finished?" Saved
+views as tabs with counts: *Needs attention* (reopened, or open with no
+owner, or resolved past its recurrence window), *Open*, *Awaiting
+verification* (resolved), *Shared cause* (the issue sits on equipment, a
+building or a floor), *Closed*, *All*. A toolbar whose state lives in the
+URL: search (title, room code or alias, ticket number), department,
+category, "only critical", sort (what came back / newest / oldest open /
+most reports); 25 rows a page. A row shows the title with "building ›
+room · category" under it, the status with a "Back ×n" badge when it
+came back, the owner, the last activity, and a menu (open, assign,
+schedule a check). The four headline figures and the per-category table
+that used to sit above the queue belong to Reports.
+
+**Verifications (`/verifications`)** – "Which fixes must be checked, and
+did they hold?" Views: *Due today* (incl. overdue), *This week*, *Mine*,
+*Done (30 d)*, *All open*. A row: the place, the issue, when it is due
+(overdue in red), the assignee, the status. *Done…* opens the form in a
+side sheet: fixed and I checked it (staff evidence), fixed and the guest
+confirmed, the problem is back (reopens the issue), or could not check
+(moves the date). A check is scheduled when an issue is marked resolved
+(on by default: two days later, for the owner), from an issue's *More*
+menu, or from a queue row. The sidebar badge on Verifications is the
+number due today.
+
 
 **Issue (`/issues/[id]`)** – "What is this problem, who has it, and is it
 really fixed?" One line says what, where (and what the place serves),
@@ -91,8 +111,14 @@ the person's name next to a confirmed link. Only roles with `links.decide`
   capability and write the state and the event. `issue-actions.ts` wraps
   them as server actions returning `{ok, message}` for the toasts;
   `issue-detail.ts` reads the events, the place and the assignable users.
-- `src/components/issues/` – the dialogs (`workflow-actions.tsx`), the note
-  composer and the activity list.
+- `src/components/issues/` – the dialogs (`workflow-actions.tsx`, incl. the
+  schedule-a-check dialog), the note composer and the activity list.
+- `src/console/verification.ts` – verification tasks: the views, the counts,
+  schedule / complete / skip (`verification-actions.ts` wraps them);
+  `src/console/today.ts` – the Today digest; `src/console/queries.ts` –
+  `queryIssues()` / `countIssueViews()` for the queue.
+- `src/components/verifications/done-sheet.tsx`, `src/components/exceptions/`
+  (filter bar, row menu), `src/components/console/{view-tabs,pager}.tsx`.
 - `src/console/actions.ts` – the `'use server'` action the buttons post to;
   it calls `applyLinkDecision` then `refresh()`.
 - `src/console/format.ts` – date, duration and label formatters, the

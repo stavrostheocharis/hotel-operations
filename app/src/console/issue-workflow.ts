@@ -112,11 +112,22 @@ export async function recordOutcome(
   ctx: TenantContext,
   actor: Actor,
   input: { issueId: string; result: OutcomeResult; note?: string | null; observedAt?: Date | null },
-): Promise<{ status: Status }> {
+): Promise<{ status: Status; outcomeId: string }> {
+  return withTenant(db, ctx, (tx) => recordOutcomeIn(tx, actor, input));
+}
+
+/** The same, inside a transaction the caller owns (verification tasks complete through here). */
+export async function recordOutcomeIn(
+  tx: Tx,
+  actor: Actor,
+  input: { issueId: string; result: OutcomeResult; note?: string | null; observedAt?: Date | null },
+  opts: { preauthorized?: boolean } = {},
+): Promise<{ status: Status; outcomeId: string }> {
   if (!(input.result in STRENGTH)) throw new Error("unknown result");
-  return withTenant(db, ctx, async (tx) => {
+  {
     const issue = await loadIssue(tx, input.issueId);
-    assertCan(actor, "issue.verify", { department: issue.department as Dept | null, ownerUserId: issue.ownerUserId });
+    // A verification task carries its own authorization (the assignee); otherwise the issue's.
+    if (!opts.preauthorized) assertCan(actor, "issue.verify", { department: issue.department as Dept | null, ownerUserId: issue.ownerUserId });
     const now = new Date();
     const at = input.observedAt ?? now;
     const note = input.note?.trim() || null;
@@ -143,8 +154,8 @@ export async function recordOutcome(
       { ...base, type: "issue.status_changed", payload: { from: issue.status, to: nextStatus, source: "human", reason: note } },
       ...(note ? [{ ...base, type: "issue.note", payload: { text: note } }] : []),
     ]);
-    return { status: nextStatus };
-  });
+    return { status: nextStatus, outcomeId: outcome.id };
+  }
 }
 
 /** An explicit status from the "More" menu. closed_unverified is a manager's call. */

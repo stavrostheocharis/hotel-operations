@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 
 import { getViewer } from "@/auth/viewer";
+import { countDueToday } from "@/console/verification";
+import { getAppDb } from "@/db";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarRail } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { t } from "@/i18n";
@@ -40,10 +42,12 @@ export function AppSidebar() {
 async function NavForViewer() {
   const viewer = await getViewer();
   const role = viewer?.roleAt() ?? "readonly";
+  const due = viewer ? await countDueToday(getAppDb(), viewer.scoped, viewer.property.timezone) : 0;
+  const badges: Partial<Record<string, number>> = { verifications: due || undefined };
   const groups: SidebarNavGroup[] = visibleNav(role).map((g) => ({
     key: g.key,
     label: t(`nav.${g.key}`),
-    items: g.items.map((i) => ({ key: i.key, href: i.href, label: t(`nav.${i.key}`), soon: i.soon })),
+    items: g.items.map((i) => ({ key: i.key, href: i.href, label: t(`nav.${i.key}`), soon: i.soon, badge: badges[i.key] })),
   }));
   return <SidebarNav groups={groups} soonLabel={t("app.soon")} />;
 }

@@ -16,6 +16,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { decideLink } from "@/console/actions";
 import { fmtDate, fmtDateTime, topicLabel } from "@/console/format";
 import { getIssueContext, listAssignableUsers } from "@/console/issue-detail";
+import { listIssueVerifications } from "@/console/verification";
+import { DoneSheet } from "@/components/verifications/done-sheet";
 import { getIssue, type IssueDetail, type IssueSignal } from "@/console/queries";
 import { getAppDb, schema } from "@/db";
 import { label, t } from "@/i18n";
@@ -46,7 +48,11 @@ async function IssueContent({ params }: Pick<PageProps<"/issues/[id]">, "params"
   // Read with every property the viewer may see, so a shared link opens.
   const issue = await getIssue(db, viewer.tenant, id);
   if (!issue) notFound();
-  const [context, users] = await Promise.all([getIssueContext(db, viewer.tenant, id, issue.locationId), listAssignableUsers(db, viewer.tenant, viewer.property.id)]);
+  const [context, users, checks] = await Promise.all([
+    getIssueContext(db, viewer.tenant, id, issue.locationId),
+    listAssignableUsers(db, viewer.tenant, viewer.property.id),
+    listIssueVerifications(db, viewer.tenant, id),
+  ]);
   const tz = viewer.property.timezone;
   const scope = { department: issue.department as never, ownerUserId: issue.ownerUserId };
   const can = {
@@ -55,6 +61,7 @@ async function IssueContent({ params }: Pick<PageProps<"/issues/[id]">, "params"
     verify: viewer.can("issue.verify", scope),
     edit: viewer.can("issue.edit"),
     close: viewer.can("settings.property"),
+    schedule: viewer.can("verification.schedule", scope),
     note: viewer.can("issue.note"),
     decide: viewer.can("links.decide"),
   };
@@ -90,7 +97,7 @@ async function IssueContent({ params }: Pick<PageProps<"/issues/[id]">, "params"
               categories={categories}
               severities={severities}
               statuses={statuses}
-              can={{ assign: can.assign, status: can.status, verify: can.verify, edit: can.edit, close: can.close }}
+              can={{ assign: can.assign, status: can.status, verify: can.verify, edit: can.edit, close: can.close, schedule: can.schedule }}
             />
           ) : null
         }
@@ -171,6 +178,25 @@ async function IssueContent({ params }: Pick<PageProps<"/issues/[id]">, "params"
                       <span className="text-caption text-muted-foreground">{fmtDate(o.observedAt, tz)}</span>
                     </div>
                     {o.evidence.note ? <p className="text-body text-muted-foreground">“{String(o.evidence.note)}”</p> : null}
+                  </div>
+                ))}
+                <h3 className="mt-2 text-caption-strong uppercase tracking-wide text-muted-foreground">{t("issue.checks")}</h3>
+                {checks.length === 0 ? <p className="text-body text-muted-foreground">{t("issue.noChecks")}</p> : null}
+                {checks.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-body text-foreground">
+                        {fmtDate(c.dueAt, tz)}
+                        {c.assigneeName ? ` · ${c.assigneeName}` : ""}
+                      </span>
+                      <span className="text-caption text-muted-foreground">
+                        {c.status === "done" && c.result ? label("issue.outcomeKind", c.result) : label("verifications.status", c.status)}
+                        {c.instructions ? ` · ${c.instructions}` : ""}
+                      </span>
+                    </div>
+                    {c.status === "open" && viewer.can("verification.complete", { ownerUserId: c.assigneeUserId, department: c.assigneeDepartment as never }) ? (
+                      <DoneSheet taskId={c.id} issueTitle={issue.title} place={issue.locationName ?? issue.locationCode ?? ""} canSkip={can.schedule} />
+                    ) : null}
                   </div>
                 ))}
               </CardContent>

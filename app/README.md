@@ -20,12 +20,14 @@ creates (`gm@demo.hotel`, `engineering@`, `supervisor@`, `staff@`, `readonly@`,
 ([docs/auth.md](docs/auth.md)). The sidebar is the map of the app; sections
 not built yet say which step brings them.
 
-- `/today` — what needs a person today (step 3)
-- `/exceptions` — the queue of issues the engine linked, ranked by what came
-  back; `/issues/[id]` one issue with its evidence, tickets, outcomes and
-  confirm / reject on every link ([docs/console.md](docs/console.md))
-- `/verifications`, `/signals`, `/review`, `/locations`, `/imports`,
-  `/settings` — arriving in steps 3–7
+- `/today` — what needs a person today: came back this week, open and
+  unassigned, checks due
+- `/exceptions` — the queue, with saved views, search and filters;
+  `/issues/[id]` one issue with its workflow, evidence, tickets, outcomes and
+  activity ([docs/console.md](docs/console.md))
+- `/verifications` — the checks that prove a fix held, with the done form
+- `/signals`, `/review`, `/locations`, `/imports`, `/settings` — arriving in
+  steps 4–7
 - `/reports/audit` — the season audit: baseline, recurring failures, fixes
   that did not hold, winter-works list, records assessment; print it for the
   PDF, export Markdown / CSV / JSON ([docs/audit.md](docs/audit.md))

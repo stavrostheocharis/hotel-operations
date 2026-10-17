@@ -362,3 +362,161 @@ export async function getIssue(db: Db, ctx: TenantContext, issueId: string): Pro
     };
   });
 }
+
+// ---------------------------------------------------------------------------
+// The exceptions queue (step 3): saved views, search, filters, sort, pages.
+// ---------------------------------------------------------------------------
+
+export type IssueView = "attention" | "open" | "awaiting" | "clusters" | "closed" | "all";
+export const ISSUE_VIEWS: IssueView[] = ["attention", "open", "awaiting", "clusters", "closed", "all"];
+export type IssueSort = "came_back" | "newest" | "oldest_open" | "most_reports";
+export const ISSUE_SORTS: IssueSort[] = ["came_back", "newest", "oldest_open", "most_reports"];
+
+export type IssueQuery = {
+  view: IssueView;
+  q?: string | null;
+  department?: string | null;
+  category?: string | null;
+  critical?: boolean;
+  sort?: IssueSort;
+  page?: number;
+  pageSize?: number;
+};
+
+export type QueueRow = {
+  id: string;
+  title: string;
+  status: string;
+  severity: string;
+  category: string | null;
+  department: string | null;
+  locationCode: string | null;
+  locationName: string | null;
+  locationKind: string | null;
+  parentName: string | null;
+  ownerUserId: string | null;
+  ownerName: string | null;
+  reopenCount: number;
+  signals: number;
+  lastActivityAt: Date;
+};
+
+const VIEW_SQL: Record<IssueView, ReturnType<typeof sql>> = {
+  attention: sql`(b.status = 'reopened'
+                  or (b.status = 'detected' and b.owner_user_id is null)
+                  or (b.status = 'resolved' and b.resolved_at + make_interval(days => b.recurrence_window_days) < now()))`,
+  open: sql`b.status in ('detected', 'assigned', 'reopened')`,
+  awaiting: sql`b.status = 'resolved'`,
+  clusters: sql`b.location_kind in ('equipment', 'building', 'floor') and b.status <> 'verified'`,
+  closed: sql`b.status in ('verified', 'closed_unverified')`,
+  all: sql`true`,
+};
+
+const SORT_SQL: Record<IssueSort, ReturnType<typeof sql>> = {
+  came_back: sql`b.reopen_count desc, b.last_activity desc`,
+  newest: sql`b.opened_at desc`,
+  oldest_open: sql`b.opened_at asc`,
+  most_reports: sql`b.signals desc, b.last_activity desc`,
+};
+
+const QUEUE_BASE = sql`
+  select i.id, i.title, i.status::text as status, i.severity::text as severity, i.category, i.department::text as department,
+         i.owner_user_id, i.reopen_count, i.opened_at, i.resolved_at, i.recurrence_window_days, i.location_id,
+         l.code as location_code, l.name as location_name, l.kind::text as location_kind, pl.name as parent_name,
+         ou.name as owner_name, s.n as signals,
+         greatest(s.last_at, i.status_changed_at, i.assigned_at, i.opened_at) as last_activity
+  from issues i
+  left join locations l on l.id = i.location_id
+  left join locations pl on pl.id = l.parent_id
+  left join users ou on ou.id = i.owner_user_id
+  join lateral (
+    select count(*)::int as n, max(sg.occurred_at) as last_at
+    from issue_signals isg join signals sg on sg.id = isg.signal_id where isg.issue_id = i.id
+  ) s on true
+  where i.superseded_at is null`;
+
+function queueFilters(p: IssueQuery) {
+  const f: ReturnType<typeof sql>[] = [];
+  if (p.department) f.push(sql`b.department = ${p.department}`);
+  if (p.category) f.push(sql`b.category = ${p.category}`);
+  if (p.critical) f.push(sql`b.severity in ('high', 'critical')`);
+  const q = p.q?.trim();
+  if (q) {
+    const like = `%${q}%`;
+    f.push(sql`(b.title ilike ${like} or b.location_code ilike ${like} or b.location_name ilike ${like}
+      or exists (select 1 from locations la where la.id = b.location_id and ${q} ilike any (la.aliases))
+      or exists (select 1 from issue_signals x join signals sg on sg.id = x.signal_id
+                 where x.issue_id = b.id and sg.source = 'work_order' and sg.external_id = ${q}))`);
+  }
+  return f.length ? sql`and ${sql.join(f, sql` and `)}` : sql``;
+}
+
+export async function queryIssues(db: Db, ctx: TenantContext, p: IssueQuery): Promise<{ rows: QueueRow[]; total: number; page: number; pageSize: number }> {
+  const pageSize = p.pageSize ?? 25;
+  const page = Math.max(1, p.page ?? 1);
+  return withTenant(db, ctx, async (tx) => {
+    const rows = await tx.execute<{
+      id: string;
+      title: string;
+      status: string;
+      severity: string;
+      category: string | null;
+      department: string | null;
+      location_code: string | null;
+      location_name: string | null;
+      location_kind: string | null;
+      parent_name: string | null;
+      owner_user_id: string | null;
+      owner_name: string | null;
+      reopen_count: number;
+      signals: number;
+      last_activity: Date;
+      total: number;
+    }>(sql`
+      with b as (${QUEUE_BASE})
+      select b.*, count(*) over ()::int as total
+      from b
+      where ${VIEW_SQL[p.view] ?? VIEW_SQL.all} ${queueFilters(p)}
+      order by ${SORT_SQL[p.sort ?? "came_back"]}
+      limit ${pageSize} offset ${(page - 1) * pageSize}
+    `);
+    return {
+      page,
+      pageSize,
+      total: rows[0]?.total ?? 0,
+      rows: rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        status: r.status,
+        severity: r.severity,
+        category: r.category,
+        department: r.department,
+        locationCode: r.location_code,
+        locationName: r.location_name,
+        locationKind: r.location_kind,
+        parentName: r.parent_name,
+        ownerUserId: r.owner_user_id,
+        ownerName: r.owner_name,
+        reopenCount: r.reopen_count,
+        signals: r.signals,
+        lastActivityAt: new Date(r.last_activity),
+      })),
+    };
+  });
+}
+
+export async function countIssueViews(db: Db, ctx: TenantContext, p: Omit<IssueQuery, "view" | "sort" | "page" | "pageSize">): Promise<Record<IssueView, number>> {
+  return withTenant(db, ctx, async (tx) => {
+    const [r] = await tx.execute<Record<IssueView, number>>(sql`
+      with b as (${QUEUE_BASE})
+      select count(*) filter (where ${VIEW_SQL.attention})::int as attention,
+             count(*) filter (where ${VIEW_SQL.open})::int as open,
+             count(*) filter (where ${VIEW_SQL.awaiting})::int as awaiting,
+             count(*) filter (where ${VIEW_SQL.clusters})::int as clusters,
+             count(*) filter (where ${VIEW_SQL.closed})::int as closed,
+             count(*)::int as all
+      from b where true ${queueFilters({ view: "all", ...p })}
+    `);
+    return r ?? { attention: 0, open: 0, awaiting: 0, clusters: 0, closed: 0, all: 0 };
+  });
+}

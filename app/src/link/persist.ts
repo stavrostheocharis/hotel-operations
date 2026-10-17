@@ -45,7 +45,6 @@ type ExistingIssue = {
 };
 
 const DERIVED_OUTCOMES = ["recurred", "no_recurrence"] as const;
-const HUMAN_OUTCOMES = ["guest_confirmed", "staff_evidence"] as const;
 
 export async function reconcileIssues(
   db: Db,
@@ -103,7 +102,7 @@ export async function reconcileIssues(
       const humanOutcomes = await tx
         .select({ id: schema.outcomes.issueId })
         .from(schema.outcomes)
-        .where(and(eq(schema.outcomes.propertyId, tenant.propertyId), inArray(schema.outcomes.kind, [...HUMAN_OUTCOMES])));
+        .where(and(eq(schema.outcomes.propertyId, tenant.propertyId), sql`(${schema.outcomes.kind} in ('guest_confirmed', 'staff_evidence') or jsonb_exists(${schema.outcomes.evidence}, 'by'))`));
       for (const o of humanOutcomes) touched.add(o.id);
       const manualTickets = await tx
         .select({ id: schema.actions.issueId })
@@ -147,7 +146,10 @@ export async function reconcileIssues(
     // --- derived rows go, human rows stay ------------------------------------
     await tx.delete(schema.issueSignals).where(eq(schema.issueSignals.propertyId, tenant.propertyId));
     await tx.delete(schema.actions).where(and(eq(schema.actions.propertyId, tenant.propertyId), eq(schema.actions.externalSystem, "ticketing_export")));
-    await tx.delete(schema.outcomes).where(and(eq(schema.outcomes.propertyId, tenant.propertyId), inArray(schema.outcomes.kind, [...DERIVED_OUTCOMES])));
+    // Derived outcomes go; the ones a person recorded (evidence.by, possibly referenced by a verification task) stay.
+    await tx
+      .delete(schema.outcomes)
+      .where(and(eq(schema.outcomes.propertyId, tenant.propertyId), inArray(schema.outcomes.kind, [...DERIVED_OUTCOMES]), sql`not jsonb_exists(${schema.outcomes.evidence}, 'by')`));
 
     // Unclaimed: delete when untouched, supersede when a person had touched it.
     const toDelete = unclaimed.filter((e) => !e.humanState).map((e) => e.id);
