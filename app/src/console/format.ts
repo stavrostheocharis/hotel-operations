@@ -1,4 +1,4 @@
-/** Small, dependency-free formatters for the console. */
+/** Small, dependency-free formatters for the console. Labels live in the i18n dictionary. */
 
 export function fmtDate(d: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("en-GB", { timeZone, day: "2-digit", month: "short" }).format(d);
@@ -27,29 +27,12 @@ export function topicLabel(topic: string | null, category: string | null): strin
   return t ? t.replace(/_/g, " ") : "unclassified";
 }
 
-export const STATUS: Record<string, { label: string; variant: "default" | "critical" | "warning" | "success" | "info" | "secondary" }> = {
-  detected: { label: "Open", variant: "default" },
-  assigned: { label: "Assigned", variant: "info" },
-  resolved: { label: "Resolved, unverified", variant: "warning" },
-  reopened: { label: "Reopened", variant: "critical" },
-  verified: { label: "Verified", variant: "success" },
-  closed_unverified: { label: "Closed, no recurrence", variant: "secondary" },
-};
-
-export const SOURCE: Record<string, string> = {
-  work_order: "Ticket",
-  front_desk: "Front desk",
-  survey: "Survey",
-  review: "Review",
-  staff_report: "Staff",
-  guest_qr: "Guest QR",
-  pms: "PMS",
-  compensation: "Compensation",
-};
-
-export const METHOD: Record<string, string> = {
-  rule: "rule",
-  embedding: "similarity",
-  llm: "model",
-  human: "confirmed",
+/** Badge variant per issue status (DESIGN.md: reopened = critical, resolved-unverified = warning, verified = success, assigned = info). */
+export const STATUS_VARIANT: Record<string, "default" | "critical" | "warning" | "success" | "info" | "secondary"> = {
+  detected: "default",
+  assigned: "info",
+  resolved: "warning",
+  reopened: "critical",
+  verified: "success",
+  closed_unverified: "secondary",
 };

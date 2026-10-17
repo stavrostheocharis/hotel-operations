@@ -4,7 +4,7 @@ import { getCurrentTenant } from "@/console/tenant";
 import { getAppDb } from "@/db";
 
 /**
- * GET /audit/export?format=md|csv|json[&from=YYYY-MM-DD&to=YYYY-MM-DD]
+ * GET /reports/audit/export?format=md|csv|json[&from=YYYY-MM-DD&to=YYYY-MM-DD]
  *
  * The same report the page shows, as a file: the written report (Markdown),
  * the winter-works list (semicolon CSV with a BOM, for Greek-locale Excel)

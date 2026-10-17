@@ -1,4 +1,4 @@
-import { date, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { createdAt, id, updatedAt } from "./common";
 import { department, userRole } from "./enums";
 
@@ -40,6 +40,11 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   role: userRole("role").notNull().default("staff"),
   department: department("department"),
+  /** A deactivated user keeps their history but cannot sign in. */
+  isActive: boolean("is_active").notNull().default(true),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  /** UI language; "en" until Greek strings exist. */
+  locale: text("locale").notNull().default("en"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });

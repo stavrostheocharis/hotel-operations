@@ -1,14 +1,15 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { assertCan } from "@/auth/permissions";
+import { requireViewer } from "@/auth/viewer";
 import { getAppDb } from "@/db";
 import { applyLinkDecision } from "./decisions";
-import { getCurrentTenant } from "./tenant";
 
 /**
  * Server action behind the confirm / reject buttons on an issue's timeline.
- * Until sign-in exists the actor is "supervisor"; the decision itself is
- * pinned on the signal pair, so a later rebuild keeps it.
+ * The actor is the signed-in user; the decision itself is pinned on the
+ * signal pair, so a later rebuild keeps it.
  */
 export async function decideLink(formData: FormData) {
   const issueId = String(formData.get("issueId") ?? "");
@@ -17,7 +18,8 @@ export async function decideLink(formData: FormData) {
   if (!issueId || !signalId || (decision !== "confirm" && decision !== "reject")) {
     throw new Error("invalid link decision");
   }
-  const tenant = await getCurrentTenant();
-  await applyLinkDecision(getAppDb(), tenant, { issueId, signalId, decision, decidedBy: "supervisor" });
+  const viewer = await requireViewer();
+  assertCan(viewer.actor(), "links.decide");
+  await applyLinkDecision(getAppDb(), viewer.tenant, { issueId, signalId, decision, decidedBy: viewer.user.id });
   refresh();
 }

@@ -52,15 +52,15 @@ from the candidates (rule and review-attach alike), `link` pairs are added
 as accepted candidates with `rule = human`. Both write an event
 (`issue.link_confirmed` / `issue.link_rejected`) with the person as actor.
 
-Until sign-in exists the actor is the literal `supervisor` and the property
-is `DEMO_PROPERTY_CODE` from `.env` (default `ASTRAEA`).
+The actor is the signed-in user's id (`docs/auth.md`); the issue page shows
+the person's name next to a confirmed link. Only roles with `links.decide`
+(supervisor and above) see the buttons, and the action checks again.
 
 ## How it is built
 
-- `src/console/tenant.ts` – `getCurrentTenant()`: looks the demo property
-  up on the admin connection (the app role sees nothing before a tenant
-  context is set), returns the `TenantContext` plus name and timezone.
-  Wrapped in `React.cache` so one request resolves it once.
+- `src/console/tenant.ts` – `getCurrentTenant()`: the signed-in viewer's
+  selected property as a `TenantContext` plus name and timezone (a thin
+  wrapper over `requireViewer()`, see `docs/auth.md`).
 - `src/console/queries.ts` – read models (`listIssues`, `countIssues`,
   `getKpis`, `getIssue`). Each runs inside `withTenant()` on the app
   connection; the SQL never filters by property, row-level security does.

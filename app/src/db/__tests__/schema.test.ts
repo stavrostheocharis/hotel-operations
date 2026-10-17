@@ -38,6 +38,9 @@ describe("migrations", () => {
       "public.ai_suggestions",
       "public.signal_embeddings",
       "public.occupancy_daily",
+      "public.link_decisions",
+      "public.sessions",
+      "public.user_credentials",
       "pii.stay_keys",
     ]) {
       expect(names, `missing ${expected}`).toContain(expected);

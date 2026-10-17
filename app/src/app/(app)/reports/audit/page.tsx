@@ -5,7 +5,8 @@ import { fmtHours, fmtInt, fmtNum, fmtPct, guest, label, LANGUAGE, pctCell, peri
 import { buildAuditReport } from "@/audit/report";
 import type { AuditReport, Verdict } from "@/audit/types";
 import { PrintButton } from "@/components/console/print-button";
-import { ConsoleShell } from "@/components/console/shell";
+import { t } from "@/i18n";
+import { PageHeader } from "@/components/console/page-header";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,17 +23,15 @@ export const metadata = { title: "Season audit" };
  * toolbar links give the Markdown, the winter-works spreadsheet and the raw
  * JSON. `?from=&to=` narrows the season window.
  */
-export default function AuditPage(props: PageProps<"/audit">) {
+export default function AuditPage(props: PageProps<"/reports/audit">) {
   return (
-    <ConsoleShell active="audit">
-      <Suspense fallback={<AuditSkeleton />}>
-        <AuditContent searchParams={props.searchParams} />
-      </Suspense>
-    </ConsoleShell>
+    <Suspense fallback={<AuditSkeleton />}>
+      <AuditContent searchParams={props.searchParams} />
+    </Suspense>
   );
 }
 
-async function AuditContent({ searchParams }: Pick<PageProps<"/audit">, "searchParams">) {
+async function AuditContent({ searchParams }: Pick<PageProps<"/reports/audit">, "searchParams">) {
   const params = await searchParams;
   const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
   const from = valid(one(params.from));
@@ -40,37 +39,30 @@ async function AuditContent({ searchParams }: Pick<PageProps<"/audit">, "searchP
   const tenant = await getCurrentTenant();
   const r = await buildAuditReport(getAppDb(), tenant, { from, to });
   const tz = r.property.timezone;
-  const exportHref = (format: string) => `/audit/export?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}), format })}`;
+  const exportHref = (format: string) => `/reports/audit/export?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}), format })}`;
 
   return (
     <article className="flex flex-col gap-10">
-      <header className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-caption-strong uppercase tracking-wide text-muted-foreground">Recurring-failure audit</p>
-            <h1 className="text-display text-foreground">
-              {r.property.name} · {r.season.label}
-            </h1>
-            <p className="text-body text-muted-foreground">
-              {r.season.from} to {r.season.to} · {fmtInt(r.volume.signalsTotal)} records · {fmtInt(r.volume.issues)} issues, {fmtInt(r.volume.issuesRecurring)} recurring · no person is named in
-              this report
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 print:hidden">
+      <PageHeader
+        crumbs={[{ label: t("reports.title"), href: "/reports" }, { label: t("reports.audit") }]}
+        title={`${r.property.name} · ${r.season.label}`}
+        description={`${r.season.from} to ${r.season.to} · ${fmtInt(r.volume.signalsTotal)} records · ${fmtInt(r.volume.issues)} issues, ${fmtInt(r.volume.issuesRecurring)} recurring · no person is named in this report`}
+        actions={
+          <>
             <PrintButton />
             {/* Plain anchors: these are file downloads, not routes to prefetch. */}
-            <a href={exportHref("md")} download className={buttonVariants({ variant: "ghost", size: "sm" })}>
+            <a href={exportHref("md")} download className={buttonVariants({ variant: "ghost" })}>
               Markdown
             </a>
-            <a href={exportHref("csv")} download className={buttonVariants({ variant: "ghost", size: "sm" })}>
+            <a href={exportHref("csv")} download className={buttonVariants({ variant: "ghost" })}>
               Winter works (CSV)
             </a>
-            <a href={exportHref("json")} download className={buttonVariants({ variant: "ghost", size: "sm" })}>
+            <a href={exportHref("json")} download className={buttonVariants({ variant: "ghost" })}>
               JSON
             </a>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <Section title="Baseline" lead="The numbers the next season is measured against.">
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">

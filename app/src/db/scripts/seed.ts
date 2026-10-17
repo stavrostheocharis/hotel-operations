@@ -2,6 +2,7 @@ import "dotenv/config";
 import { readFile } from "node:fs/promises";
 import { parse as parseYaml } from "yaml";
 import { eq, sql } from "drizzle-orm";
+import { hashPassword } from "@/auth/password";
 import { createDb, schema, type Db } from "../index";
 import {
   readEquipment,
@@ -277,6 +278,53 @@ export async function seed(db: Db, opts: SeedOptions = {}): Promise<SeedResult> 
   };
 }
 
+/**
+ * One demo user per role, all on the seeded property (the group admin sees
+ * the whole group through their role instead of a membership). Idempotent:
+ * re-running resets names, roles and the password. The password comes from
+ * DEMO_PASSWORD; it is never written anywhere but user_credentials.
+ */
+export const DEMO_USERS = [
+  { email: "admin@demo.hotel", name: "Alexandra Demos", role: "group_admin", department: "management", member: false },
+  { email: "gm@demo.hotel", name: "Georgios Manolas", role: "gm", department: "management", member: true },
+  { email: "engineering@demo.hotel", name: "Eleni Karra", role: "dept_head", department: "engineering", member: true },
+  { email: "housekeeping@demo.hotel", name: "Haris Kostas", role: "dept_head", department: "housekeeping", member: true },
+  { email: "supervisor@demo.hotel", name: "Sofia Petrou", role: "supervisor", department: "front_office", member: true },
+  { email: "staff@demo.hotel", name: "Stavros Nikou", role: "staff", department: "engineering", member: true },
+  { email: "readonly@demo.hotel", name: "Rena Observer", role: "readonly", department: null, member: true },
+] as const;
+
+export async function seedUsers(
+  db: Db,
+  opts: { propertyCode?: string; password: string; log?: (line: string) => void } ,
+): Promise<{ users: number }> {
+  const log = opts.log ?? (() => {});
+  const property = await findProperty(db, opts.propertyCode ?? "ASTRAEA");
+  if (!property) throw new Error("property not seeded; run seed() first");
+  const hash = await hashPassword(opts.password);
+  let n = 0;
+  for (const u of DEMO_USERS) {
+    const [row] = await db
+      .insert(schema.users)
+      .values({ groupId: property.groupId, email: u.email, name: u.name, role: u.role, department: u.department, isActive: true })
+      .onConflictDoUpdate({
+        target: schema.users.email,
+        set: { name: u.name, role: u.role, department: u.department, isActive: true },
+      })
+      .returning({ id: schema.users.id });
+    if (u.member) {
+      await db
+        .insert(schema.memberships)
+        .values({ groupId: property.groupId, propertyId: property.id, userId: row.id })
+        .onConflictDoNothing();
+    }
+    await db.execute(sql`select auth_set_password(${row.id}, ${hash})`);
+    n++;
+  }
+  log(`seeded ${n} demo users`);
+  return { users: n };
+}
+
 /** Look up the seeded property without re-seeding. */
 export async function findProperty(db: Db, propertyCode = "ASTRAEA") {
   const [row] = await db
@@ -306,6 +354,9 @@ async function main() {
   const db = createDb(url, { max: 1 });
   try {
     await seed(db, { log: console.log });
+    const password = process.env.DEMO_PASSWORD;
+    if (password) await seedUsers(db, { password, log: console.log });
+    else console.log("DEMO_PASSWORD is not set: no demo users seeded (copy .env.example to .env)");
   } finally {
     await db.$client.end();
   }
