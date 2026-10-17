@@ -5,6 +5,7 @@ import { findProperty } from "@/db/scripts/seed";
 import { LINK_PROMPT_VERSION, type JudgePair, type LlmClient } from "@/normalize/llm";
 import { LocationIndex, type LocationRow } from "@/normalize/location-rules";
 import { clusterPairs } from "./cluster";
+import { reconcileIssues, type ReconcileResult } from "./persist";
 import { cosine, embeddingModelId, loadEmbeddings } from "./embeddings";
 import { buildIssue, type IssueDraft } from "./issues";
 import { ACCEPT, GRAY_LOW, attachOrphanReviews, generateCandidates, pairKey, type ServesMap } from "./rules";
@@ -29,6 +30,8 @@ export type LinkOptions = {
   /** "Today" for the verification clock; defaults to the latest signal. */
   asOf?: Date;
   log?: (msg: string) => void;
+  /** The job this run belongs to, recorded on every issue it touched. */
+  jobId?: string | null;
 };
 
 export type LinkResult = {
@@ -43,6 +46,8 @@ export type LinkResult = {
   issues: number;
   multiSignalIssues: number;
   byRule: Record<string, number>;
+  /** How the rebuild met what was already there: see src/link/persist.ts. */
+  reconcile: ReconcileResult;
 };
 
 export async function linkSignals(db: Db, opts: LinkOptions = {}): Promise<LinkResult> {
@@ -269,7 +274,7 @@ export async function linkSignals(db: Db, opts: LinkOptions = {}): Promise<LinkR
   const multi = drafts.filter((d) => d.signalIds.length >= 2).length;
   log(`${clusters.length} clusters → ${drafts.length} issues (${multi} with 2+ signals)`);
 
-  await persistIssues(db, tenant, drafts, accepted, index, byId);
+  const reconcile = await reconcileIssues(db, tenant, drafts, accepted, index, byId, { jobId: opts.jobId ?? null });
 
   return {
     signals: signals.length,
@@ -283,108 +288,6 @@ export async function linkSignals(db: Db, opts: LinkOptions = {}): Promise<LinkR
     issues: drafts.length,
     multiSignalIssues: multi,
     byRule,
+    reconcile,
   };
-}
-
-async function persistIssues(
-  db: Db,
-  tenant: { groupId: string; propertyId: string },
-  drafts: IssueDraft[],
-  accepted: CandidatePair[],
-  index: LocationIndex,
-  byId: Map<string, LinkSignal>,
-) {
-  const bestPair = new Map<string, CandidatePair>();
-  for (const p of accepted) {
-    for (const id of [p.a, p.b]) {
-      const prev = bestPair.get(id);
-      if (!prev || p.score > prev.score) bestPair.set(id, p);
-    }
-  }
-
-  await db.transaction(async (tx) => {
-    // Derived data: wipe and rebuild for the property.
-    await tx.delete(schema.issueSignals).where(eq(schema.issueSignals.propertyId, tenant.propertyId));
-    await tx.delete(schema.actions).where(eq(schema.actions.propertyId, tenant.propertyId));
-    await tx.delete(schema.outcomes).where(eq(schema.outcomes.propertyId, tenant.propertyId));
-    await tx.delete(schema.issues).where(eq(schema.issues.propertyId, tenant.propertyId));
-
-    const CHUNK = 300;
-    for (let i = 0; i < drafts.length; i += CHUNK) {
-      const chunk = drafts.slice(i, i + CHUNK);
-      const inserted = await tx
-        .insert(schema.issues)
-        .values(
-          chunk.map((d) => ({
-            ...tenant,
-            title: d.title,
-            category: d.category,
-            severity: d.severity,
-            status: d.status,
-            locationId: d.locationCode ? index.idOf(d.locationCode) ?? null : null,
-            openedAt: d.openedAt,
-            resolvedAt: d.resolvedAt,
-            reopenCount: d.reopenCount,
-            rootCause: d.rootCause,
-            recurrenceWindowDays: d.recurrenceWindowDays,
-          })),
-        )
-        .returning({ id: schema.issues.id });
-
-      const links: (typeof schema.issueSignals.$inferInsert)[] = [];
-      const actions: (typeof schema.actions.$inferInsert)[] = [];
-      const outcomes: (typeof schema.outcomes.$inferInsert)[] = [];
-      const events: (typeof schema.events.$inferInsert)[] = [];
-
-      chunk.forEach((d, k) => {
-        const issueId = inserted[k].id;
-        for (const sid of d.signalIds) {
-          const pair = bestPair.get(sid);
-          links.push({
-            ...tenant,
-            issueId,
-            signalId: sid,
-            role: sid === d.primaryId ? "primary" : d.duplicateIds.has(sid) ? "duplicate" : "supporting",
-            confidence: (pair ? pair.score : 1).toFixed(3),
-            method: pair ? pair.method : "rule",
-            evidence: pair ? { rule: pair.rule, ...pair.evidence } : { rule: "singleton" },
-            decidedBy: "system",
-          });
-          const s = byId.get(sid);
-          if (s?.wo) {
-            actions.push({
-              ...tenant,
-              issueId,
-              kind: "ticket_created",
-              externalSystem: "ticketing_export",
-              externalRef: s.externalId,
-              actor: s.wo.technician,
-              performedAt: s.wo.createdAt,
-              details: {
-                status: s.wo.status,
-                closed_at: s.wo.closedAt?.toISOString() ?? null,
-                closure_note: s.wo.closureNote,
-                reopened_flag: s.wo.reopened,
-              },
-            });
-          }
-        }
-        for (const r of d.reopenEvidence) {
-          outcomes.push({ ...tenant, issueId, kind: "recurred", strength: 0, observedAt: r.at, evidence: { closed_at: r.closedAt.toISOString(), signal_id: r.signalId } });
-          events.push({ ...tenant, entityType: "issue", entityId: issueId, type: "issue.reopened", occurredAt: r.at, payload: { signal_id: r.signalId } });
-        }
-        if (d.status === "closed_unverified" && d.resolvedAt) {
-          const at = new Date(d.resolvedAt.getTime() + d.recurrenceWindowDays * 86_400_000);
-          outcomes.push({ ...tenant, issueId, kind: "no_recurrence", strength: 1, observedAt: at, evidence: { window_days: d.recurrenceWindowDays } });
-        }
-        events.push({ ...tenant, entityType: "issue", entityId: issueId, type: "issue.detected", occurredAt: d.openedAt, payload: { signals: d.signalIds.length, topic: d.topic, location: d.locationCode } });
-        if (d.resolvedAt) events.push({ ...tenant, entityType: "issue", entityId: issueId, type: "issue.resolved", occurredAt: d.resolvedAt, payload: { status: d.status } });
-      });
-
-      for (let j = 0; j < links.length; j += 500) await tx.insert(schema.issueSignals).values(links.slice(j, j + 500));
-      for (let j = 0; j < actions.length; j += 500) await tx.insert(schema.actions).values(actions.slice(j, j + 500));
-      for (let j = 0; j < outcomes.length; j += 500) await tx.insert(schema.outcomes).values(outcomes.slice(j, j + 500));
-      for (let j = 0; j < events.length; j += 500) await tx.insert(schema.events).values(events.slice(j, j + 500));
-    }
-  });
 }

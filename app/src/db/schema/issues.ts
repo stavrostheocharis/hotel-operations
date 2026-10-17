@@ -47,6 +47,19 @@ export const issues = pgTable(
     recurrenceWindowDays: integer("recurrence_window_days")
       .notNull()
       .default(30),
+    /** What the linker computed last; `status` may differ when a person set it. */
+    derivedStatus: issueStatus("derived_status").notNull().default("detected"),
+    /** 'system' while the linker owns the status, 'human' once a person set it. */
+    statusSource: text("status_source").notNull().default("system"),
+    statusChangedAt: timestamp("status_changed_at", { withTimezone: true }),
+    statusChangedBy: uuid("status_changed_by").references(() => users.id),
+    assignedAt: timestamp("assigned_at", { withTimezone: true }),
+    assignedBy: uuid("assigned_by").references(() => users.id),
+    verifiedBy: uuid("verified_by").references(() => users.id),
+    /** Set when a rebuild regrouped this issue's signals elsewhere but a person had touched it. */
+    supersededAt: timestamp("superseded_at", { withTimezone: true }),
+    supersededByIssueId: uuid("superseded_by_issue_id"),
+    lastRebuildJobId: uuid("last_rebuild_job_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

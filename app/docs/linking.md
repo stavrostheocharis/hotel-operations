@@ -14,10 +14,25 @@ pnpm db:link --embed --llm --judge-limit=60   # cap the model at the 60 most pro
 pnpm db:link --fake-llm                   # exercise the judge code path without a network call
 ```
 
-Issues are derived data and are rebuilt from scratch for the property on
-every run; signals are the record. Human decisions survive the rebuild
-because they are stored on signal pairs, not on issues: `link_decisions`
-(`link` / `unlink`, written by the console) is read at the start of every
+Issues are derived data; signals are the record. A run recomputes every
+cluster, then **reconciles** it with what is in the table instead of wiping
+it (`src/link/persist.ts`): each new cluster claims the existing issue it
+shares most signals with (ties go to the issue holding the first report,
+then to one a person touched), so a claimed issue keeps its id and with it
+its owner, its notes and its history; its derived fields (title, place,
+root cause, reopen count, `derived_status`) are updated. Existing issues
+nothing claimed are deleted when untouched, or marked `superseded_at` (with
+`superseded_by_issue_id`) when a person had touched them. Only derived
+rows are rewritten: `issue_signals`, the tickets from the export, and the
+`recurred` / `no_recurrence` outcomes. Status: the linker owns it while
+`status_source = 'system'`; once a person set it (`'human'`) it stays,
+except that a reopening report newer than the person's decision reopens
+the issue again (`issue.status_changed` with `source: system`).
+`issue.detected`, `issue.reopened` and `issue.resolved` events are written
+once, not once per run.
+
+Human decisions on links survive the same way through `link_decisions`
+(`link` / `unlink`, written by the console), read at the start of every
 run — `unlink` pairs are removed from the candidates, `link` pairs are
 accepted outright with `rule = human`. See [console.md](console.md).
 
@@ -115,7 +130,8 @@ pairs.
 
 ## What this step does not do
 
-- No incremental linking: every run rebuilds the property's issues.
+- No incremental linking: every run recomputes the property's clusters
+  (and then reconciles them with the existing issues, see above).
 - No review of the gray zone as a queue: the console lets a supervisor
   confirm or reject a link on an issue page (which pins it), but there is no
   "pairs the model was unsure about" list yet.
@@ -134,6 +150,7 @@ src/link/
   rules.ts        generateCandidates(), attachOrphanReviews(), windows and thresholds
   cluster.ts      clusterPairs() union-find
   issues.ts       buildIssue(): root cause, closures, reopen evidence, status
+  persist.ts      reconcileIssues(): match clusters to existing issues, keep ids and human state
   embeddings.ts   embedSignals(), loadEmbeddings(), cosine()
   pipeline.ts     linkSignals(): rules → embeddings → judge → clusters → persist
   eval.ts         evaluateLinking(), formatLinkReport()

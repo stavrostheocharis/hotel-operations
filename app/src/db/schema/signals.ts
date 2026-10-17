@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   index,
   numeric,
@@ -56,6 +57,13 @@ export const signals = pgTable(
     /** What normalisation found: extracted room numbers, keyword hits, pii redactions, stage versions. Derived. */
     normalized: jsonbObject("normalized"),
     normalizedAt: timestamp("normalized_at", { withTimezone: true }),
+    /** Derived fields a person set by hand ('category', 'topic', 'location'); normalisation leaves them alone. */
+    lockedFields: text("locked_fields")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    /** The record in the data request's own field names, whatever the export called them. Filled by the loaders. */
+    mapped: jsonbObject("mapped"),
     raw: jsonbObject("raw"),
     ingestBatchId: text("ingest_batch_id"),
     createdAt: createdAt(),
