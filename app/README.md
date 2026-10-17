@@ -29,7 +29,11 @@ not built yet say which step brings them.
 - `/signals` — every record as it arrived, with a drawer to fix its place or
   category, link it to an issue or start one; `/review` — the pairs the
   engine was unsure about, one at a time
-- `/locations`, `/imports`, `/settings` — arriving in steps 5–7
+- `/locations` — buildings › floors › rooms, facilities and equipment with
+  their open issues; each place with its history and what serves it
+- `/settings/locations` — aliases, what equipment serves, new places, and the
+  typed spellings nothing resolved, mapped to real places
+- `/imports`, the rest of `/settings` — arriving in steps 6–7
 - `/reports/audit` — the season audit: baseline, recurring failures, fixes
   that did not hold, winter-works list, records assessment; print it for the
   PDF, export Markdown / CSV / JSON ([docs/audit.md](docs/audit.md))
