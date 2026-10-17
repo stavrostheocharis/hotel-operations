@@ -68,6 +68,30 @@ decisions can be undone. The linker rewrites the pending queue on every
 run (`ai_suggestions`, kind `link`, decision `pending`, best first; at
 most 300); the sidebar badge is the count.
 
+**Locations (`/locations`, `/locations/[code]`)** – "Where are the
+problems?" and "What has happened at this place?" The left column is the
+tree: buildings › floors › rooms, then facilities, then equipment, with a
+search by code, name or alias and the number of open issues as a muted
+count (buildings and floors sum what is below them). `/locations` lists
+the buildings, facilities and busy equipment with open, came-back and
+total issues. A place's page has the kind, its parent chain as
+breadcrumbs, and tabs: *Overview* (its facts, what it is also called,
+what serves it — the boiler, the chiller, the lift — or, for equipment,
+what it serves), *History* (the issues here, optionally including every
+place below, and the records here that belong to no issue), *Rooms* (the
+floors or rooms below, red when something is open). Editing is in Settings.
+
+**Settings → Locations (`/settings/locations`)** – which places exist,
+what they are also called, what serves what. One list per kind with the
+aliases as chips (add, remove) and, for equipment, what it serves (a
+dialog with every place to tick). *Add place* creates a room, facility or
+piece of equipment under a parent. **Unresolved spellings** is the list
+of what staff typed for a place that nothing resolved (`location_method
+= none`), grouped and counted with a sample: *Map to…* makes the spelling
+an alias of the chosen place and moves every record carrying it there at
+once, marked as resolved by alias. Managers and the engineering head may
+edit (`settings.locations`); everyone else reads.
+
 **Issue (`/issues/[id]`)** – "What is this problem, who has it, and is it
 really fixed?" One line says what, where (and what the place serves),
 owner and department, open since when; the root cause sentence under it.
@@ -146,6 +170,12 @@ the person's name next to a confirmed link. Only roles with `links.decide`
   `queryIssues()` / `countIssueViews()` for the queue.
 - `src/components/verifications/done-sheet.tsx`, `src/components/exceptions/`
   (filter bar, row menu), `src/components/console/{view-tabs,pager}.tsx`.
+- `src/console/locations.ts` (tree with counts, a place, its history, the
+  unresolved spellings), `location-admin.ts` (aliases, serves, map a
+  spelling, create, rename) and `location-actions.ts`;
+  `src/components/locations/` (tree, browser frame) and
+  `src/components/settings/` (tabs, alias editor, serves dialog, map-to,
+  add place).
 - `src/console/signals.ts` (list, views, record, likely issues, search,
   places) and `signal-actions.ts` (relocate, reclassify, link, create);
   `src/console/review.ts` (pairs, decide, undo) and `review-actions.ts`;
