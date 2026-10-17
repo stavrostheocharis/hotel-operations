@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import { getViewer } from "@/auth/viewer";
+import { countPendingPairs } from "@/console/review";
 import { countDueToday } from "@/console/verification";
 import { getAppDb } from "@/db";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarRail } from "@/components/ui/sidebar";
@@ -42,8 +43,8 @@ export function AppSidebar() {
 async function NavForViewer() {
   const viewer = await getViewer();
   const role = viewer?.roleAt() ?? "readonly";
-  const due = viewer ? await countDueToday(getAppDb(), viewer.scoped, viewer.property.timezone) : 0;
-  const badges: Partial<Record<string, number>> = { verifications: due || undefined };
+  const [due, pending] = viewer ? await Promise.all([countDueToday(getAppDb(), viewer.scoped, viewer.property.timezone), countPendingPairs(getAppDb(), viewer.scoped)]) : [0, 0];
+  const badges: Partial<Record<string, number>> = { verifications: due || undefined, review: pending || undefined };
   const groups: SidebarNavGroup[] = visibleNav(role).map((g) => ({
     key: g.key,
     label: t(`nav.${g.key}`),

@@ -28,6 +28,8 @@ export type ReconcileResult = {
   kept: number;
   deleted: number;
   superseded: number;
+  /** Issues a person built or linked by hand that no cluster claimed; kept as they are. */
+  keptManual: number;
   reopenedByEvidence: number;
 };
 
@@ -83,17 +85,29 @@ export async function reconcileIssues(
     const membership = new Map<string, string[]>();
     const signalToIssue = new Map<string, string>();
     if (existingIds.length) {
+      // Only live issues can be claimed; a superseded one keeps its human links but stays out of the matching.
       const links = await tx
         .select({ issueId: schema.issueSignals.issueId, signalId: schema.issueSignals.signalId })
         .from(schema.issueSignals)
-        .where(eq(schema.issueSignals.propertyId, tenant.propertyId));
+        .innerJoin(schema.issues, eq(schema.issues.id, schema.issueSignals.issueId))
+        .where(and(eq(schema.issueSignals.propertyId, tenant.propertyId), isNull(schema.issues.supersededAt)));
       for (const l of links) {
         membership.set(l.issueId, [...(membership.get(l.issueId) ?? []), l.signalId]);
         signalToIssue.set(l.signalId, l.issueId);
       }
     }
     const touched = new Set<string>();
+    // Records a person linked by hand stay with their issue; an issue made of them is a person's issue.
+    const humanLinked = new Set<string>();
     if (existingIds.length) {
+      const human = await tx
+        .select({ id: schema.issueSignals.issueId })
+        .from(schema.issueSignals)
+        .where(and(eq(schema.issueSignals.propertyId, tenant.propertyId), sql`${schema.issueSignals.decidedBy} <> 'system'`));
+      for (const h of human) {
+        touched.add(h.id);
+        humanLinked.add(h.id);
+      }
       const noted = await tx
         .select({ id: schema.events.entityId })
         .from(schema.events)
@@ -130,7 +144,8 @@ export async function reconcileIssues(
       let best: string | null = null;
       let bestScore = 0;
       for (const [iid, n] of overlap) {
-        const e = existingById.get(iid)!;
+        const e = existingById.get(iid);
+        if (!e) continue;
         // Overlap first; then the issue that holds the first report; then the one a person touched; then the older one.
         const tie = (n === bestScore && best) ? compareTie(e, existingById.get(best)!, d) : 0;
         if (n > bestScore || (n === bestScore && tie > 0)) {
@@ -144,16 +159,17 @@ export async function reconcileIssues(
     const unclaimed = existing.filter((e) => !claimed.has(e.id));
 
     // --- derived rows go, human rows stay ------------------------------------
-    await tx.delete(schema.issueSignals).where(eq(schema.issueSignals.propertyId, tenant.propertyId));
+    await tx.delete(schema.issueSignals).where(and(eq(schema.issueSignals.propertyId, tenant.propertyId), eq(schema.issueSignals.decidedBy, "system")));
     await tx.delete(schema.actions).where(and(eq(schema.actions.propertyId, tenant.propertyId), eq(schema.actions.externalSystem, "ticketing_export")));
     // Derived outcomes go; the ones a person recorded (evidence.by, possibly referenced by a verification task) stay.
     await tx
       .delete(schema.outcomes)
       .where(and(eq(schema.outcomes.propertyId, tenant.propertyId), inArray(schema.outcomes.kind, [...DERIVED_OUTCOMES]), sql`not jsonb_exists(${schema.outcomes.evidence}, 'by')`));
 
-    // Unclaimed: delete when untouched, supersede when a person had touched it.
+    // Unclaimed: delete when untouched, keep when a person built it from records,
+    // supersede when a person had touched it but its records went elsewhere.
     const toDelete = unclaimed.filter((e) => !e.humanState).map((e) => e.id);
-    const toSupersede = unclaimed.filter((e) => e.humanState);
+    const toSupersede = unclaimed.filter((e) => e.humanState && !humanLinked.has(e.id));
     if (toDelete.length) await tx.delete(schema.issues).where(inArray(schema.issues.id, toDelete));
     const events: (typeof schema.events.$inferInsert)[] = [];
     for (const e of toSupersede) {
@@ -303,13 +319,13 @@ export async function reconcileIssues(
           events.push({ ...tenant, entityType: "issue", entityId: issueId, type: "issue.resolved", occurredAt: d.resolvedAt, payload: { status: d.status } });
         }
       }
-      for (let j = 0; j < links.length; j += 500) await tx.insert(schema.issueSignals).values(links.slice(j, j + 500));
+      for (let j = 0; j < links.length; j += 500) await tx.insert(schema.issueSignals).values(links.slice(j, j + 500)).onConflictDoNothing();
       for (let j = 0; j < actions.length; j += 500) await tx.insert(schema.actions).values(actions.slice(j, j + 500));
       for (let j = 0; j < outcomes.length; j += 500) await tx.insert(schema.outcomes).values(outcomes.slice(j, j + 500));
     }
     for (let j = 0; j < events.length; j += 500) await tx.insert(schema.events).values(events.slice(j, j + 500));
 
-    return { created, kept, deleted: toDelete.length, superseded: toSupersede.length, reopenedByEvidence };
+    return { created, kept, deleted: toDelete.length, superseded: toSupersede.length, keptManual: unclaimed.filter((e) => humanLinked.has(e.id)).length, reopenedByEvidence };
   });
 }
 

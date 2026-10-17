@@ -51,6 +51,16 @@ function sentence(e: IssueEvent): string {
       return t("issue.activity.linkRejected");
     case "issue.edited":
       return t("issue.activity.edited", { fields: Object.keys(p).join(", ") });
+    case "issue.created_manually":
+      return t("issue.activity.createdManually");
+    case "verification.scheduled":
+      return `${t("verifications.schedule")} · ${String(p.due_at ?? "").slice(0, 10)}`;
+    case "verification.done":
+      return `${t("verifications.status.done")}: ${label("issue.outcomeKind", String(p.result ?? ""))}`;
+    case "verification.rescheduled":
+      return `${t("verifications.toast.rescheduled", { date: String(p.due_at ?? "").slice(0, 10) })}`;
+    case "verification.skipped":
+      return t("verifications.toast.skipped");
     default:
       return e.type;
   }
