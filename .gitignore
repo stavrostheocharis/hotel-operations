@@ -15,6 +15,9 @@ dist/
 coverage/
 *.tsbuildinfo
 
+# Generated reports (audit, reality check); data/out is covered by out/ above
+data/reports/
+
 # Environment
 .env
 .env.*

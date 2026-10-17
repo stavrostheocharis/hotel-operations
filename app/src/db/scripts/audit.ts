@@ -5,14 +5,15 @@ import { renderMarkdown, renderWinterWorksCsv } from "@/audit/markdown";
 import { addNarrative, createFakeNarrator, createOpenAiNarrator } from "@/audit/narrative";
 import { buildAuditReport } from "@/audit/report";
 import { createDb } from "../index";
-import { dataDir } from "./lib/paths";
+import { repoRoot } from "./lib/paths";
 import { findProperty } from "./seed";
 
 /**
  * pnpm db:audit [--from=YYYY-MM-DD] [--to=YYYY-MM-DD] [--out=DIR] [--property=CODE] [--llm | --fake-llm]
  *
  *   --from / --to   season window, property-local dates (default: the property's season)
- *   --out=DIR       where to write audit.json, audit.md and winter-works.csv (default: data/out/audit)
+ *   --out=DIR       where to write audit.json, audit.md and winter-works.csv (default: data/reports/audit,
+ *                   outside data/out so the exports folder stays exactly what the client delivered)
  *   --property      property code (default ASTRAEA)
  *   --llm           add a model-written summary (OpenAI reasoning model)
  *   --fake-llm      add the deterministic summary instead, no network call
@@ -42,7 +43,7 @@ async function main() {
       report = await addNarrative(report, narrator);
     }
 
-    const out = opt("out") ?? path.join(dataDir(), "audit");
+    const out = opt("out") ?? path.join(repoRoot, "data", "reports", "audit");
     await mkdir(out, { recursive: true });
     await writeFile(path.join(out, "audit.json"), JSON.stringify(report, null, 2));
     await writeFile(path.join(out, "audit.md"), renderMarkdown(report));

@@ -6,7 +6,7 @@ run gives the written report, the winter-works spreadsheet and the raw
 figures; the console shows the same thing at `/audit`.
 
 ```bash
-pnpm db:audit                      # data/out/audit/{audit.md, winter-works.csv, audit.json}
+pnpm db:audit                      # data/reports/audit/{audit.md, winter-works.csv, audit.json}
 pnpm db:audit --fake-llm           # with a deterministic summary paragraph
 pnpm db:audit --llm                # with a summary written by the reasoning model
 pnpm db:audit --from=2026-07-01 --to=2026-08-31 --label="High season 2026" --out=/tmp/audit

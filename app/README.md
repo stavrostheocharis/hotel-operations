@@ -48,7 +48,7 @@ pnpm db:normalize --llm    # same, plus OpenAI for translation and leftovers (ne
 pnpm db:link --eval        # link signals into issues (rules only), scored against the answer key
 pnpm db:embed              # OpenAI embeddings for every signal text (needs OPENAI_API_KEY)
 pnpm db:link --embed --llm # linking with embeddings and the reasoning model on the gray zone
-pnpm db:audit --fake-llm   # season audit → data/out/audit/{audit.md, winter-works.csv, audit.json}
+pnpm db:audit --fake-llm   # season audit → data/reports/audit/{audit.md, winter-works.csv, audit.json}
 pnpm db:test               # fresh test database, migrations, seed, load, normalise, vitest
 pnpm test:unit             # the pure tests only (reality check), no database
 pnpm db:generate           # after editing src/db/schema/*.ts
