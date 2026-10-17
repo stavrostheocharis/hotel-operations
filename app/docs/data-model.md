@@ -186,6 +186,22 @@ Every transition writes an `events` row (`issue.assigned`, `issue.resolved`,
 `issue.verified`, `issue.reopened`, `verification.due`, ...). Digests, timers
 and escalation rules consume the event log, never the issue table directly.
 
+### Who owns the status
+
+`issues.status` is what the console shows; `issues.derived_status` is what
+the linker computed last. While `status_source = 'system'` the two move
+together. When a person assigns, resolves, verifies or sets a status by
+hand, `status_source` becomes `'human'` and the linker leaves `status`
+alone — with one exception: a reopening report newer than the person's
+decision (`status_changed_at`) puts the issue back to `reopened`, because
+the lifecycle rule above outranks any decision taken before the evidence.
+`owner_user_id`, `department`, `assigned_at/by`, `verified_at/by`,
+`status_changed_at/by` hold the current state; the history is in `events`
+(`issue.assigned`, `issue.status_changed`, `issue.note`, `issue.verified`,
+`issue.edited`), which are append-only. An issue the linker could not match
+to any cluster after a person touched it is kept with `superseded_at` and
+`superseded_by_issue_id` rather than deleted.
+
 ## Tenant context (row-level security)
 
 Every tenant table carries `group_id` and `property_id`, and every one of them

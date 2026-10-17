@@ -39,8 +39,8 @@ export function tList(key: TKey, locale = "en"): readonly string[] {
   return Array.isArray(value) ? (value as readonly string[]) : typeof value === "string" ? [value] : [];
 }
 
-/** A label from one of the enum maps, falling back to the raw value. */
-export function label(group: "status" | "source" | "method" | "user.role" | "user.department", value: string | null | undefined, locale = "en"): string {
+/** A label from one of the enum maps (e.g. "status", "user.department", "issue.outcomeKind"), falling back to the raw value. */
+export function label(group: string, value: string | null | undefined, locale = "en"): string {
   if (!value) return "";
   const map = lookup(getDictionary(locale), group);
   const found = map && typeof map === "object" ? (map as Record<string, string>)[value] : undefined;

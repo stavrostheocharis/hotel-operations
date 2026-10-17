@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDb, schema, type Db } from "../index";
 import { dataDir } from "../scripts/lib/paths";
@@ -59,7 +59,7 @@ describe("linking engine (rules + fake judge)", () => {
   });
 
   it("writes consistent derived rows: one primary per issue, tickets as actions, reopen outcomes", async () => {
-    const [{ issues }] = await db.select({ issues: sql<number>`count(*)::int` }).from(schema.issues).where(eq(schema.issues.propertyId, propertyId));
+    const [{ issues }] = await db.select({ issues: sql<number>`count(*)::int` }).from(schema.issues).where(and(eq(schema.issues.propertyId, propertyId), isNull(schema.issues.supersededAt)));
     expect(issues).toBe(result.issues);
     const [{ primaries }] = await db
       .select({ primaries: sql<number>`count(*)::int` })
@@ -78,12 +78,27 @@ describe("linking engine (rules + fake judge)", () => {
     expect(reopened).toBeGreaterThan(10);
   });
 
-  it("rebuilds to the same result on a second run", async () => {
+  it("rebuilds to the same result on a second run, keeping issue ids and not repeating events", async () => {
+    const before = await db.select({ id: schema.issues.id }).from(schema.issues).where(and(eq(schema.issues.propertyId, propertyId), isNull(schema.issues.supersededAt)));
+    const [{ detected }] = await db
+      .select({ detected: sql<number>`count(*)::int` })
+      .from(schema.events)
+      .where(and(eq(schema.events.propertyId, propertyId), eq(schema.events.type, "issue.detected")));
     const again = await linkSignals(db, { llm: createFakeLlm() });
+    expect(again.reconcile.created).toBe(0);
+    expect(again.reconcile.deleted).toBe(0);
+    expect(again.reconcile.kept).toBe(before.length);
+    const after = await db.select({ id: schema.issues.id }).from(schema.issues).where(and(eq(schema.issues.propertyId, propertyId), isNull(schema.issues.supersededAt)));
+    expect(new Set(after.map((r) => r.id))).toEqual(new Set(before.map((r) => r.id)));
+    const [{ detectedAfter }] = await db
+      .select({ detectedAfter: sql<number>`count(*)::int` })
+      .from(schema.events)
+      .where(and(eq(schema.events.propertyId, propertyId), eq(schema.events.type, "issue.detected")));
+    expect(detectedAfter).toBe(detected);
     expect(again.issues).toBe(result.issues);
     expect(again.accepted).toBe(result.accepted);
     const [{ links }] = await db.select({ links: sql<number>`count(*)::int` }).from(schema.issueSignals).where(eq(schema.issueSignals.propertyId, propertyId));
-    const [{ issues }] = await db.select({ issues: sql<number>`count(*)::int` }).from(schema.issues).where(eq(schema.issues.propertyId, propertyId));
+    const [{ issues }] = await db.select({ issues: sql<number>`count(*)::int` }).from(schema.issues).where(and(eq(schema.issues.propertyId, propertyId), isNull(schema.issues.supersededAt)));
     expect(issues).toBe(result.issues);
     expect(links).toBeGreaterThan(result.issues);
   });

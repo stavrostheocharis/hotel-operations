@@ -21,8 +21,18 @@ then size, then recency.
 - The table: title, where the cause sits, status, reopens, signals, which
   sources contributed, first → last signal.
 
-**Issue (`/issues/[id]`)** – the root cause sentence, the location, four
-figures (signals, reopens, episodes, tickets closed), then:
+**Issue (`/issues/[id]`)** – "What is this problem, who has it, and is it
+really fixed?" One line says what, where (and what the place serves),
+owner and department, open since when; the root cause sentence under it.
+**One primary action per status**: open or reopened → *Assign* (department,
+owner, note); assigned → *Mark resolved* (what was done, required; a ticket
+reference, optional); resolved or closed unverified → *Record verification*
+(a colleague checked it / the guest confirmed / the problem is back, with a
+date and a note); verified → nothing. *More* holds change owner, change
+status (closed-unverified is a manager's call), edit (title, category,
+severity, department) and copy link. Every change writes the issue's
+current state to its columns and its history to `events`; notes are events
+only (`issue.note`). Tabs:
 
 - *Evidence*: every linked record in time order with source, location,
   topic, the text (English, original underneath when translated), and the
@@ -30,8 +40,18 @@ figures (signals, reopens, episodes, tickets closed), then:
   The first report is marked; duplicates are marked.
 - *Tickets*: the work orders in the issue, with status, closure date,
   technician and closure note.
-- *Outcomes*: "came back" (recurred), "no recurrence", or a guest / staff
-  confirmation.
+- *Outcomes*: the recurrence window after the last closure, then "came
+  back" (recurred), "no recurrence", "checked by staff" or "guest confirmed",
+  with the note a person left.
+- *Activity*: the note composer and the issue's events as sentences, newest
+  first, with the person's name.
+
+On the side: where the issue sits (the place and its ancestors, what serves
+it or what it serves), related issues at the same place, and the people
+(owner, department, verified by). An issue the engine regrouped after a
+person had touched it shows a notice with a link to the issue that took
+its records (`superseded_at`); it leaves the queue but keeps its history.
+What survives a linking run is described in [linking.md](linking.md).
 
 ## Confirm and reject
 
@@ -66,6 +86,13 @@ the person's name next to a confirmed link. Only roles with `links.decide`
   connection; the SQL never filters by property, row-level security does.
 - `src/console/decisions.ts` – `applyLinkDecision()`, the confirm/reject
   logic above, also under `withTenant()`.
+- `src/console/issue-workflow.ts` – assign, resolve, record outcome, change
+  status, note, edit: plain functions over the database that check the
+  capability and write the state and the event. `issue-actions.ts` wraps
+  them as server actions returning `{ok, message}` for the toasts;
+  `issue-detail.ts` reads the events, the place and the assignable users.
+- `src/components/issues/` – the dialogs (`workflow-actions.tsx`), the note
+  composer and the activity list.
 - `src/console/actions.ts` – the `'use server'` action the buttons post to;
   it calls `applyLinkDecision` then `refresh()`.
 - `src/console/format.ts` – date, duration and label formatters, the

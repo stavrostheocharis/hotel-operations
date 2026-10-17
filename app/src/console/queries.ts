@@ -27,6 +27,8 @@ export type IssueRow = {
   resolvedAt: Date | null;
   locationCode: string | null;
   locationKind: string | null;
+  ownerName: string | null;
+  department: string | null;
   signals: number;
   firstAt: Date;
   lastAt: Date;
@@ -55,6 +57,8 @@ export async function listIssues(db: Db, ctx: TenantContext, filter: IssueFilter
       resolved_at: Date | null;
       location_code: string | null;
       location_kind: string | null;
+      owner_name: string | null;
+      department: string | null;
       signals: number;
       first_at: Date;
       last_at: Date;
@@ -62,18 +66,19 @@ export async function listIssues(db: Db, ctx: TenantContext, filter: IssueFilter
       total: number;
     }>(sql`
       select i.id, i.title, i.status, i.severity, i.category, i.reopen_count, i.opened_at, i.resolved_at,
-             l.code as location_code, l.kind as location_kind,
+             l.code as location_code, l.kind as location_kind, ou.name as owner_name, i.department,
              s.n as signals, s.first_at, s.last_at, s.sources,
              count(*) over ()::int as total
       from issues i
       left join locations l on l.id = i.location_id
+      left join users ou on ou.id = i.owner_user_id
       join lateral (
         select count(*)::int as n, min(sg.occurred_at) as first_at, max(sg.occurred_at) as last_at,
                string_agg(distinct sg.source::text, ',') as sources
         from issue_signals isg join signals sg on sg.id = isg.signal_id
         where isg.issue_id = i.id
       ) s on true
-      where ${where}
+      where i.superseded_at is null and ${where}
       order by i.reopen_count desc, s.n desc, s.last_at desc
       limit ${limit}
     `);
@@ -90,6 +95,8 @@ export async function listIssues(db: Db, ctx: TenantContext, filter: IssueFilter
         resolvedAt: r.resolved_at ? new Date(r.resolved_at) : null,
         locationCode: r.location_code,
         locationKind: r.location_kind,
+        ownerName: r.owner_name,
+        department: r.department,
         signals: r.signals,
         firstAt: new Date(r.first_at),
         lastAt: new Date(r.last_at),
@@ -110,6 +117,7 @@ export async function countIssues(db: Db, ctx: TenantContext): Promise<FilterCou
              count(*) filter (where l.kind in ('equipment', 'building', 'floor'))::int as clusters,
              count(*) filter (where i.status = 'closed_unverified')::int as unverified
       from issues i left join locations l on l.id = i.location_id
+      where i.superseded_at is null
     `);
     return r ?? { all: 0, reopened: 0, open: 0, clusters: 0, unverified: 0 };
   });
@@ -193,9 +201,21 @@ export type IssueDetail = {
   resolvedAt: Date | null;
   rootCause: string | null;
   recurrenceWindowDays: number;
+  locationId: string | null;
   locationCode: string | null;
   locationName: string | null;
   locationKind: string | null;
+  department: string | null;
+  ownerUserId: string | null;
+  ownerName: string | null;
+  /** 'system' while the linker owns the status, 'human' once a person set it. */
+  statusSource: string;
+  statusChangedAt: Date | null;
+  verifiedAt: Date | null;
+  verifiedByName: string | null;
+  supersededAt: Date | null;
+  supersededByIssueId: string | null;
+  derivedStatus: string;
   signals: IssueSignal[];
   actions: { id: string; kind: string; externalRef: string | null; actor: string | null; performedAt: Date; details: Record<string, unknown> }[];
   outcomes: { id: string; kind: string; strength: number; observedAt: Date; evidence: Record<string, unknown> }[];
@@ -234,13 +254,29 @@ export async function getIssue(db: Db, ctx: TenantContext, issueId: string): Pro
       resolved_at: Date | null;
       root_cause: string | null;
       recurrence_window_days: number;
+      location_id: string | null;
       location_code: string | null;
       location_name: string | null;
       location_kind: string | null;
+      department: string | null;
+      owner_user_id: string | null;
+      owner_name: string | null;
+      status_source: string;
+      status_changed_at: Date | null;
+      verified_at: Date | null;
+      verified_by_name: string | null;
+      superseded_at: Date | null;
+      superseded_by_issue_id: string | null;
+      derived_status: string;
     }>(sql`
       select i.id, i.title, i.status, i.severity, i.category, i.reopen_count, i.opened_at, i.resolved_at, i.root_cause,
-             i.recurrence_window_days, l.code as location_code, l.name as location_name, l.kind as location_kind
-      from issues i left join locations l on l.id = i.location_id
+             i.recurrence_window_days, l.id as location_id, l.code as location_code, l.name as location_name, l.kind as location_kind,
+             i.department, i.owner_user_id, ou.name as owner_name, i.status_source, i.status_changed_at,
+             i.verified_at, vu.name as verified_by_name, i.superseded_at, i.superseded_by_issue_id, i.derived_status
+      from issues i
+      left join locations l on l.id = i.location_id
+      left join users ou on ou.id = i.owner_user_id
+      left join users vu on vu.id = i.verified_by
       where i.id = ${issueId}
     `);
     if (!i) return null;
@@ -289,9 +325,20 @@ export async function getIssue(db: Db, ctx: TenantContext, issueId: string): Pro
       resolvedAt: i.resolved_at ? new Date(i.resolved_at) : null,
       rootCause: i.root_cause,
       recurrenceWindowDays: i.recurrence_window_days,
+      locationId: i.location_id,
       locationCode: i.location_code,
       locationName: i.location_name,
       locationKind: i.location_kind,
+      department: i.department,
+      ownerUserId: i.owner_user_id,
+      ownerName: i.owner_name,
+      statusSource: i.status_source,
+      statusChangedAt: i.status_changed_at ? new Date(i.status_changed_at) : null,
+      verifiedAt: i.verified_at ? new Date(i.verified_at) : null,
+      verifiedByName: i.verified_by_name,
+      supersededAt: i.superseded_at ? new Date(i.superseded_at) : null,
+      supersededByIssueId: i.superseded_by_issue_id,
+      derivedStatus: i.derived_status,
       signals: signals.map((s) => ({
         id: s.id,
         source: s.source,
