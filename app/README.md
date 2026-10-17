@@ -46,9 +46,21 @@ pnpm db:link --eval        # link signals into issues (rules only), scored again
 pnpm db:embed              # OpenAI embeddings for every signal text (needs OPENAI_API_KEY)
 pnpm db:link --embed --llm # linking with embeddings and the reasoning model on the gray zone
 pnpm db:test               # fresh test database, migrations, seed, load, normalise, vitest
+pnpm test:unit             # the pure tests only (reality check), no database
 pnpm db:generate           # after editing src/db/schema/*.ts
 pnpm db:studio             # drizzle-kit studio
 ```
+
+Before any of that, the phase-0 **data reality check** reads a client's export folder as
+delivered (CSV / XLSX / JSON, any delimiter, encoding or column names) and writes the
+go / reshape / stop memo of `docs/discovery/05-go-no-go.md`, without a database:
+
+```bash
+pnpm db:reality-check --dir=../data/out                  # → data/out/reality-check/reality-check.md
+pnpm db:reality-check --dir=/path/to/export --out=/path/to/memo
+```
+
+See [`docs/reality-check.md`](docs/reality-check.md).
 
 Normalisation (language, location, category/topic, PII, translation) is described in
 [`docs/normalization.md`](docs/normalization.md); linking signals into issues with recurrence
@@ -130,7 +142,7 @@ src/
   db/
     index.ts          createDb(), withTenant(), getAppDb(), getAdminDb()
     schema/           Drizzle tables and enums (one file per area)
-    scripts/          migrate, seed, load-synthetic, normalize (+ lib/ readers and helpers)
+    scripts/          migrate, seed, load-synthetic, normalize, reality-check (+ lib/ readers and helpers)
     __tests__/        vitest suite against a real Postgres
   console/
     tenant.ts         getCurrentTenant(): the demo property until sign-in exists
@@ -146,6 +158,10 @@ src/
     llm.ts            LlmClient interface, OpenAI (AI SDK) and fake implementations
     pipeline.ts       the stages, writes derived columns + events + ai_suggestions
     eval.ts           scoring against data/out/answer_key.json
+  reality/
+    read.ts           readExportFolder(): a client's folder as delivered → tables of string cells
+    catalogue.ts      the data request as a target schema; headers.ts matches columns to it
+    analyze.ts        the facts, pure; scorecard.ts the go / reshape / stop rules; markdown.ts the memo
   link/
     rules.ts          candidate pairs: same place, serves, containment, clusters, leaks, stays, reviews
     cluster.ts        union-find over accepted pairs

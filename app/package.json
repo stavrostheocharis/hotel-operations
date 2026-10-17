@@ -17,7 +17,9 @@
     "db:test": "vitest run",
     "db:normalize": "tsx src/db/scripts/normalize.ts",
     "db:embed": "tsx src/db/scripts/embed.ts",
-    "db:link": "tsx src/db/scripts/link.ts"
+    "db:link": "tsx src/db/scripts/link.ts",
+    "db:reality-check": "tsx src/db/scripts/reality-check.ts",
+    "test:unit": "vitest run --project unit"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.95",
