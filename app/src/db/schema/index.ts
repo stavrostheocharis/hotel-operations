@@ -10,4 +10,5 @@ export * from "./ai";
 export * from "./embeddings";
 export * from "./occupancy";
 export * from "./decisions";
+export * from "./auth";
 export * from "./pii";

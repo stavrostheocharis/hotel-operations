@@ -1,18 +1,18 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { requireViewer } from "@/auth/viewer";
 import { SourceBadge, StatusBadge } from "@/components/console/badges";
-import { ConsoleShell } from "@/components/console/shell";
+import { PageHeader } from "@/components/console/page-header";
+import { PageSkeleton } from "@/components/console/page-skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { decideLink } from "@/console/actions";
-import { fmtDate, fmtDateTime, METHOD, topicLabel } from "@/console/format";
+import { fmtDate, fmtDateTime, topicLabel } from "@/console/format";
 import { getIssue, type IssueSignal } from "@/console/queries";
-import { getCurrentTenant } from "@/console/tenant";
 import { getAppDb } from "@/db";
+import { label, t } from "@/i18n";
 
 export const metadata = { title: "Issue" };
 
@@ -24,56 +24,63 @@ export const metadata = { title: "Issue" };
  */
 export default function IssuePage(props: PageProps<"/issues/[id]">) {
   return (
-    <ConsoleShell active="exceptions">
-      <Suspense fallback={<IssueSkeleton />}>
-        <IssueContent params={props.params} />
-      </Suspense>
-    </ConsoleShell>
+    <Suspense fallback={<PageSkeleton variant="detail" />}>
+      <IssueContent params={props.params} />
+    </Suspense>
   );
 }
 
 async function IssueContent({ params }: Pick<PageProps<"/issues/[id]">, "params">) {
   const { id } = await params;
-  const tenant = await getCurrentTenant();
-  const issue = await getIssue(getAppDb(), tenant, id);
+  const viewer = await requireViewer();
+  // Read with every property the viewer may see, so a shared link opens.
+  const issue = await getIssue(getAppDb(), viewer.tenant, id);
   if (!issue) notFound();
-  const tz = tenant.timezone;
+  const tz = viewer.property.timezone;
+  const canDecide = viewer.can("links.decide");
   const closures = issue.actions.filter((a) => a.details.closed_at);
   const episodes = /(\d+) episodes?/.exec(issue.rootCause ?? "")?.[1] ?? "1";
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <Link href="/" className="text-caption text-muted-foreground hover:underline">
-          ← Exceptions
-        </Link>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-display text-foreground">{issue.title}</h1>
-          <StatusBadge status={issue.status} />
-          <Badge variant="outline">{issue.severity}</Badge>
-        </div>
-        <p className="text-body text-muted-foreground">{issue.rootCause}</p>
-        <p className="text-caption text-muted-soft">
-          {issue.locationName ? `${issue.locationName} (${issue.locationCode}, ${issue.locationKind})` : "no location"} · opened {fmtDateTime(issue.openedAt, tz)}
-          {issue.resolvedAt ? ` · last closure ${fmtDateTime(issue.resolvedAt, tz)}` : ""} · recurrence window {issue.recurrenceWindowDays} days
-        </p>
-      </div>
+      <PageHeader
+        crumbs={[{ label: t("issue.back"), href: "/exceptions" }, { label: issue.title }]}
+        title={issue.title}
+        badge={
+          <>
+            <StatusBadge status={issue.status} />
+            <Badge variant="outline">{issue.severity}</Badge>
+          </>
+        }
+        description={
+          <>
+            {issue.rootCause}
+            <br />
+            <span className="text-caption text-muted-soft">
+              {issue.locationName ? `${issue.locationName} (${issue.locationCode}, ${issue.locationKind})` : t("issue.meta.noLocation")} ·{" "}
+              {t("issue.meta.opened", { when: fmtDateTime(issue.openedAt, tz) })}
+              {issue.resolvedAt ? ` · ${t("issue.meta.lastClosure", { when: fmtDateTime(issue.resolvedAt, tz) })}` : ""} ·{" "}
+              {t("issue.meta.window", { days: issue.recurrenceWindowDays })}
+            </span>
+          </>
+        }
+      />
 
       <section className="grid grid-cols-2 gap-4 md:grid-cols-4" aria-label="Figures">
-        <Figure label="Signals" value={String(issue.signals.length)} />
-        <Figure label="Reopens" value={String(issue.reopenCount)} />
-        <Figure label="Episodes" value={episodes} />
-        <Figure label="Tickets closed" value={`${closures.length} of ${issue.actions.length}`} />
+        <Figure label={t("issue.figures.signals")} value={String(issue.signals.length)} />
+        <Figure label={t("issue.figures.reopens")} value={String(issue.reopenCount)} />
+        <Figure label={t("issue.figures.episodes")} value={episodes} />
+        <Figure label={t("issue.figures.ticketsClosed")} value={`${closures.length} of ${issue.actions.length}`} />
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Evidence</CardTitle>
+            <CardTitle>{t("issue.evidence")}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col divide-y divide-border p-0">
             {issue.signals.map((s) => (
-              <SignalRow key={s.id} signal={s} issueId={issue.id} tz={tz} />
+              <SignalRow key={s.id} signal={s} issueId={issue.id} tz={tz} canDecide={canDecide} />
             ))}
           </CardContent>
         </Card>
@@ -81,10 +88,10 @@ async function IssueContent({ params }: Pick<PageProps<"/issues/[id]">, "params"
         <div className="flex flex-col gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Tickets</CardTitle>
+              <CardTitle>{t("issue.tickets")}</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 pt-0">
-              {issue.actions.length === 0 ? <p className="text-body text-muted-foreground">No ticket was raised.</p> : null}
+              {issue.actions.length === 0 ? <p className="text-body text-muted-foreground">{t("issue.noTicket")}</p> : null}
               {issue.actions.map((a) => (
                 <div key={a.id} className="flex flex-col gap-0.5">
                   <div className="flex items-baseline justify-between gap-2">
@@ -93,8 +100,7 @@ async function IssueContent({ params }: Pick<PageProps<"/issues/[id]">, "params"
                   </div>
                   <span className="text-caption text-muted-foreground">
                     {String(a.details.status ?? "")}
-                    {a.details.closed_at ? ` · closed ${fmtDate(new Date(String(a.details.closed_at)), tz)}` : " · open"}
-                    {a.actor ? ` · ${a.actor}` : ""}
+                    {a.details.closed_at ? ` · ${t("issue.meta.closed", { when: fmtDate(new Date(String(a.details.closed_at)), tz) })}` : ` · ${t("issue.meta.open")}`}
                   </span>
                   {a.details.closure_note ? <span className="text-caption text-muted-soft">“{String(a.details.closure_note)}”</span> : null}
                 </div>
@@ -104,14 +110,20 @@ async function IssueContent({ params }: Pick<PageProps<"/issues/[id]">, "params"
 
           <Card>
             <CardHeader>
-              <CardTitle>Outcomes</CardTitle>
+              <CardTitle>{t("issue.outcomes")}</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 pt-0">
-              {issue.outcomes.length === 0 ? <p className="text-body text-muted-foreground">No outcome recorded yet.</p> : null}
+              {issue.outcomes.length === 0 ? <p className="text-body text-muted-foreground">{t("issue.noOutcome")}</p> : null}
               {issue.outcomes.map((o) => (
                 <div key={o.id} className="flex items-baseline justify-between gap-2">
                   <span className="text-body text-foreground">
-                    {o.kind === "recurred" ? <Badge variant="critical">Came back</Badge> : o.kind === "no_recurrence" ? <Badge variant="secondary">No recurrence</Badge> : <Badge variant="success">{o.kind.replace(/_/g, " ")}</Badge>}
+                    {o.kind === "recurred" ? (
+                      <Badge variant="critical">{t("issue.cameBack")}</Badge>
+                    ) : o.kind === "no_recurrence" ? (
+                      <Badge variant="secondary">{t("issue.noRecurrence")}</Badge>
+                    ) : (
+                      <Badge variant="success">{o.kind.replace(/_/g, " ")}</Badge>
+                    )}
                   </span>
                   <span className="text-caption text-muted-foreground">{fmtDate(o.observedAt, tz)}</span>
                 </div>
@@ -124,7 +136,7 @@ async function IssueContent({ params }: Pick<PageProps<"/issues/[id]">, "params"
   );
 }
 
-function SignalRow({ signal: s, issueId, tz }: { signal: IssueSignal; issueId: string; tz: string }) {
+function SignalRow({ signal: s, issueId, tz, canDecide }: { signal: IssueSignal; issueId: string; tz: string; canDecide: boolean }) {
   const rule = String(s.evidence.rule ?? s.method);
   const text = s.textEn ?? s.textOriginal;
   const confirmed = s.method === "human" || s.decidedBy !== "system";
@@ -135,26 +147,26 @@ function SignalRow({ signal: s, issueId, tz }: { signal: IssueSignal; issueId: s
         <SourceBadge source={s.source} />
         {s.locationCode ? <span className="text-caption-strong text-foreground">{s.locationCode}</span> : null}
         <span className="text-caption text-muted-foreground">{topicLabel(s.topic, s.category)}</span>
-        {s.role === "primary" ? <Badge variant="primary">first report</Badge> : null}
-        {s.role === "duplicate" ? <Badge variant="secondary">duplicate</Badge> : null}
+        {s.role === "primary" ? <Badge variant="primary">{t("issue.firstReport")}</Badge> : null}
+        {s.role === "duplicate" ? <Badge variant="secondary">{t("issue.duplicate")}</Badge> : null}
       </div>
-      <p className="text-body text-foreground">{text ?? <span className="text-muted-soft">no text</span>}</p>
+      <p className="text-body text-foreground">{text ?? <span className="text-muted-soft">{t("issue.noText")}</span>}</p>
       {s.textEn && s.textOriginal && s.textEn !== s.textOriginal ? <p className="text-caption text-muted-soft">{s.textOriginal}</p> : null}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-caption text-muted-foreground">
-          linked by {METHOD[s.method] ?? s.method}: {rule.replace(/[:_]/g, " ")}
+          {t("issue.linkedBy", { method: label("method", s.method), rule: rule.replace(/[:_]/g, " ") })}
           {s.confidence !== null ? ` · ${Math.round(s.confidence * 100)}%` : ""}
-          {confirmed ? ` · ${s.decidedBy}` : ""}
+          {confirmed ? ` · ${s.decidedByName ?? s.decidedBy}` : ""}
         </span>
-        {s.role !== "primary" && !confirmed ? (
+        {canDecide && s.role !== "primary" && !confirmed ? (
           <form action={decideLink} className="ml-auto flex gap-2">
             <input type="hidden" name="issueId" value={issueId} />
             <input type="hidden" name="signalId" value={s.id} />
-            <Button type="submit" name="decision" value="confirm" size="sm" variant="secondary">
-              Confirm
+            <Button type="submit" name="decision" value="confirm" variant="secondary">
+              {t("issue.confirm")}
             </Button>
-            <Button type="submit" name="decision" value="reject" size="sm" variant="ghost">
-              Not this issue
+            <Button type="submit" name="decision" value="reject" variant="ghost">
+              {t("issue.reject")}
             </Button>
           </form>
         ) : null}
@@ -171,19 +183,5 @@ function Figure({ label, value }: { label: string; value: string }) {
         <span className="text-title-lg text-foreground tabular-nums">{value}</span>
       </CardContent>
     </Card>
-  );
-}
-
-function IssueSkeleton() {
-  return (
-    <div className="flex flex-col gap-6">
-      <Skeleton className="h-10 w-2/3 rounded-sm" />
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-20 rounded-card" />
-        ))}
-      </div>
-      <Skeleton className="h-96 rounded-card" />
-    </div>
   );
 }

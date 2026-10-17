@@ -217,6 +217,8 @@ export type IssueSignal = {
   confidence: number | null;
   evidence: Record<string, unknown>;
   decidedBy: string;
+  /** The person's name when decided_by is a user id. */
+  decidedByName: string | null;
 };
 
 export async function getIssue(db: Db, ctx: TenantContext, issueId: string): Promise<IssueDetail | null> {
@@ -258,12 +260,15 @@ export async function getIssue(db: Db, ctx: TenantContext, issueId: string): Pro
       confidence: string | null;
       evidence: Record<string, unknown>;
       decided_by: string;
+      decided_by_name: string | null;
     }>(sql`
       select sg.id, sg.source, sg.external_id, sg.occurred_at, sg.language, sg.text_original, sg.text_en, sg.topic, sg.category,
-             l.code as location_code, isg.role, isg.method, isg.confidence, isg.evidence, isg.decided_by
+             l.code as location_code, isg.role, isg.method, isg.confidence, isg.evidence, isg.decided_by,
+             du.name as decided_by_name
       from issue_signals isg
       join signals sg on sg.id = isg.signal_id
       left join locations l on l.id = sg.location_id
+      left join users du on du.id::text = isg.decided_by
       where isg.issue_id = ${issueId}
       order by sg.occurred_at
     `);
@@ -303,6 +308,7 @@ export async function getIssue(db: Db, ctx: TenantContext, issueId: string): Pro
         confidence: s.confidence === null ? null : Number(s.confidence),
         evidence: s.evidence ?? {},
         decidedBy: s.decided_by,
+        decidedByName: s.decided_by_name,
       })),
       actions: actions.map((a) => ({ id: a.id, kind: a.kind, externalRef: a.external_ref, actor: a.actor, performedAt: new Date(a.performed_at), details: a.details ?? {} })),
       outcomes: outcomes.map((o) => ({ id: o.id, kind: o.kind, strength: o.strength, observedAt: new Date(o.observed_at), evidence: o.evidence ?? {} })),

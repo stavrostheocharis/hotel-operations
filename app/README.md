@@ -14,15 +14,26 @@ pnpm install
 pnpm dev
 ```
 
-- http://localhost:3000 — the exceptions queue (needs a seeded, loaded, normalised
-  and linked database: the `db:*` commands below, in that order)
-- http://localhost:3000/issues/[id] — one issue: evidence, tickets, outcomes,
+Sign in at http://localhost:3000 with one of the demo users `pnpm db:seed`
+creates (`gm@demo.hotel`, `engineering@`, `supervisor@`, `staff@`, `readonly@`,
+`admin@demo.hotel`) and the `DEMO_PASSWORD` from your `.env`
+([docs/auth.md](docs/auth.md)). The sidebar is the map of the app; sections
+not built yet say which step brings them.
+
+- `/today` — what needs a person today (step 3)
+- `/exceptions` — the queue of issues the engine linked, ranked by what came
+  back; `/issues/[id]` one issue with its evidence, tickets, outcomes and
   confirm / reject on every link ([docs/console.md](docs/console.md))
-- http://localhost:3000/audit — the season audit: baseline, recurring failures,
-  fixes that did not hold, winter-works list, records assessment; print it for
-  the PDF, export Markdown / CSV / JSON ([docs/audit.md](docs/audit.md))
-- http://localhost:3000/design — live design-system reference (every token and
-  component, light/dark toggle in the header)
+- `/verifications`, `/signals`, `/review`, `/locations`, `/imports`,
+  `/settings` — arriving in steps 3–7
+- `/reports/audit` — the season audit: baseline, recurring failures, fixes
+  that did not hold, winter-works list, records assessment; print it for the
+  PDF, export Markdown / CSV / JSON ([docs/audit.md](docs/audit.md))
+- `/copilot`, `/guest-qr` — what phases 3 and 4 will bring, in plain words
+- `/design` — live design-system reference (every token and component)
+
+Needs a seeded, loaded, normalised and linked database: the `db:*` commands
+below, in that order.
 
 Checks:
 
@@ -132,13 +143,18 @@ Then apply the DESIGN.md rules in the generated file before using it:
 
 ```
 src/
+  proxy.ts            cookie-presence redirect to /sign-in
   app/
     layout.tsx        fonts, ThemeProvider, TooltipProvider
     globals.css       theme
-    page.tsx          / exceptions queue + KPIs
-    issues/[id]/      one issue: evidence, tickets, outcomes, confirm / reject
-    audit/            /audit season report, export/ route for md / csv / json
-    design/           /design reference route
+    page.tsx          / → /today
+    (auth)/sign-in/   the sign-in page and form
+    (app)/            everything behind sign-in, inside the shell:
+      today, exceptions, issues/[id], verifications, signals, review, locations,
+      reports (+ reports/audit with its export route), imports, settings,
+      copilot, guest-qr, design
+  auth/               sessions, viewer, permissions, sign-in actions (docs/auth.md)
+  i18n/               en.ts dictionary + typed t()
   audit/
     types.ts          AuditReport
     report.ts         buildAuditReport(): queries + assembly under withTenant
@@ -147,7 +163,8 @@ src/
     narrative.ts      model-written summary (AI SDK) and a fake for tests
   components/
     ui/               shadcn components, restyled
-    console/          shell (header + nav), status and source badges, print button
+    app/              the shell: sidebar, navigation by role, property switcher, user menu, top bar
+    console/          page header, empty state, skeletons, badges, placeholders, print button
     theme-provider.tsx
     theme-toggle.tsx
   db/

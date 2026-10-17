@@ -43,6 +43,13 @@
       "when": 1792168941531,
       "tag": "0005_link_decisions",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792249978374,
+      "tag": "0006_auth",
+      "breakpoints": true
     }
   ]
 }
