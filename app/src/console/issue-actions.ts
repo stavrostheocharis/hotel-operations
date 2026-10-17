@@ -6,6 +6,7 @@ import { requireViewer } from "@/auth/viewer";
 import { getAppDb } from "@/db";
 import { label, t } from "@/i18n";
 import { addIssueNote, assignIssue, changeIssueStatus, editIssue, recordOutcome, resolveIssue, type OutcomeResult } from "./issue-workflow";
+import { scheduleVerification } from "./verification";
 
 /**
  * The server actions behind the issue page's dialogs. Each one
@@ -47,7 +48,15 @@ export async function assignIssueAction(_prev: ActionResult | null, fd: FormData
 export async function resolveIssueAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return run(async () => {
     const viewer = await requireViewer();
-    await resolveIssue(getAppDb(), viewer.tenant, viewer.actor(), { issueId: str(fd, "issueId"), note: str(fd, "note"), ticketRef: opt(fd, "ticketRef") });
+    const issueId = str(fd, "issueId");
+    await resolveIssue(getAppDb(), viewer.tenant, viewer.actor(), { issueId, note: str(fd, "note"), ticketRef: opt(fd, "ticketRef") });
+    if (str(fd, "schedule") === "on") {
+      const dueOn = opt(fd, "dueOn");
+      const due = dueOn ? new Date(`${dueOn}T12:00:00`) : new Date(Date.now() + 2 * 86_400_000);
+      const assignee = opt(fd, "assigneeUserId");
+      await scheduleVerification(getAppDb(), viewer.tenant, viewer.actor(), { issueId, dueAt: due, assigneeUserId: assignee === "none" ? null : assignee, instructions: opt(fd, "instructions") });
+      return `${t("issue.toast.resolved")} · ${t("verifications.toast.scheduled", { date: due.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) })}`;
+    }
     return t("issue.toast.resolved");
   });
 }

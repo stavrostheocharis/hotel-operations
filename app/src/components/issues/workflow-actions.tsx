@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   assignIssueAction,
@@ -22,6 +23,7 @@ import {
   type ActionResult,
 } from "@/console/issue-actions";
 import type { AssignableUser } from "@/console/issue-detail";
+import { scheduleVerificationAction } from "@/console/verification-actions";
 import { label, t } from "@/i18n";
 
 export type Option = { value: string; label: string };
@@ -37,9 +39,9 @@ export type WorkflowIssue = {
   ownerName: string | null;
 };
 
-export type WorkflowPermissions = { assign: boolean; status: boolean; verify: boolean; edit: boolean; close: boolean };
+export type WorkflowPermissions = { assign: boolean; status: boolean; verify: boolean; edit: boolean; close: boolean; schedule: boolean };
 
-type DialogKind = "assign" | "resolve" | "verify" | "status" | "edit" | null;
+type DialogKind = "assign" | "resolve" | "verify" | "status" | "edit" | "schedule" | null;
 
 /**
  * One primary action per status, the rest under "More". Every dialog posts
@@ -78,6 +80,7 @@ export function WorkflowActions({
     { kind: "assign", text: t("issue.actions.changeOwner"), show: can.assign && primary?.kind !== "assign" },
     { kind: "status", text: t("issue.actions.changeStatus"), show: can.status },
     { kind: "verify", text: t("issue.actions.verify"), show: can.verify && primary?.kind !== "verify" },
+    { kind: "schedule", text: t("issue.actions.schedule"), show: can.schedule },
     { kind: "edit", text: t("issue.actions.edit"), show: can.edit },
     { kind: "copy", text: t("issue.actions.copyLink"), show: true },
   ];
@@ -113,7 +116,8 @@ export function WorkflowActions({
       </DropdownMenu>
 
       <AssignDialog open={open === "assign"} onClose={close} issue={issue} users={users} departments={departments} />
-      <ResolveDialog open={open === "resolve"} onClose={close} issue={issue} />
+      <ResolveDialog open={open === "resolve"} onClose={close} issue={issue} users={users} />
+      <ScheduleDialog open={open === "schedule"} onClose={close} issueId={issue.id} issueTitle={issue.title} users={users} defaultAssigneeId={issue.ownerUserId} />
       <VerifyDialog open={open === "verify"} onClose={close} issue={issue} />
       <StatusDialog open={open === "status"} onClose={close} issue={issue} statuses={statuses.filter((s) => s.value !== "closed_unverified" || can.close)} />
       <EditDialog open={open === "edit"} onClose={close} issue={issue} categories={categories} severities={severities} departments={departments} />
@@ -158,7 +162,7 @@ function Field({ id, text, hint, children }: { id: string; text: string; hint?: 
   );
 }
 
-function AssignDialog({ open, onClose, issue, users, departments }: { open: boolean; onClose: () => void; issue: WorkflowIssue; users: AssignableUser[]; departments: Option[] }) {
+export function AssignDialog({ open, onClose, issue, users, departments }: { open: boolean; onClose: () => void; issue: WorkflowIssue; users: AssignableUser[]; departments: Option[] }) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(assignIssueAction, null);
   const [department, setDepartment] = useState<string>(issue.department ?? "");
   const [owner, setOwner] = useState<string>(issue.ownerUserId ?? "none");
@@ -209,9 +213,16 @@ function AssignDialog({ open, onClose, issue, users, departments }: { open: bool
   );
 }
 
-function ResolveDialog({ open, onClose, issue }: { open: boolean; onClose: () => void; issue: WorkflowIssue }) {
+export function dateInputValue(d: Date): string {
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}
+
+function ResolveDialog({ open, onClose, issue, users }: { open: boolean; onClose: () => void; issue: WorkflowIssue; users: AssignableUser[] }) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(resolveIssueAction, null);
+  const [schedule, setSchedule] = useState(true);
+  const [assignee, setAssignee] = useState(issue.ownerUserId ?? "none");
   useActionToast(state, onClose);
+  const [inTwoDays] = useState(() => dateInputValue(new Date(Date.now() + 2 * 86_400_000)));
   return (
     <Frame open={open} onClose={onClose} title={t("issue.dialog.resolveTitle")} description={t("issue.dialog.resolveDescription")}>
       <form action={action} className="flex flex-col gap-5">
@@ -222,7 +233,83 @@ function ResolveDialog({ open, onClose, issue }: { open: boolean; onClose: () =>
         <Field id="ticketRef" text={t("issue.dialog.ticketRef")} hint={t("issue.dialog.optional")}>
           <Input id="ticketRef" name="ticketRef" />
         </Field>
+        <label className="flex items-center justify-between gap-3 rounded-lg bg-secondary px-4 py-3">
+          <span className="flex flex-col">
+            <span className="text-body-strong text-foreground">{t("verifications.resolveSchedule")}</span>
+            <span className="text-caption text-muted-foreground">{t("verifications.resolveScheduleHint")}</span>
+          </span>
+          <Switch name="schedule" checked={schedule} onCheckedChange={(v) => setSchedule(Boolean(v))} />
+        </label>
+        {schedule ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field id="dueOn" text={t("verifications.dialog.dueOn")}>
+              <Input id="dueOn" name="dueOn" type="date" defaultValue={inTwoDays} />
+            </Field>
+            <Field id="assignee" text={t("verifications.dialog.assignee")}>
+              <AssigneeSelect id="assignee" value={assignee} onChange={setAssignee} users={users} />
+            </Field>
+          </div>
+        ) : null}
         <Footer pending={pending} submit={t("issue.actions.resolve")} />
+      </form>
+    </Frame>
+  );
+}
+
+export function AssigneeSelect({ id, value, onChange, users }: { id: string; value: string; onChange: (v: string) => void; users: AssignableUser[] }) {
+  return (
+    <Select name="assigneeUserId" value={value} onValueChange={(v) => onChange(String(v ?? "none"))} items={[{ value: "none", label: t("verifications.nobody") }, ...users.map((u) => ({ value: u.id, label: u.name }))]}>
+      <SelectTrigger id={id} className="h-10 w-full rounded-lg">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="none">{t("verifications.nobody")}</SelectItem>
+        {users.map((u) => (
+          <SelectItem key={u.id} value={u.id}>
+            {u.name} · {label("user.role", u.role)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+export function ScheduleDialog({
+  open,
+  onClose,
+  issueId,
+  issueTitle,
+  users,
+  defaultAssigneeId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  issueId: string;
+  issueTitle: string;
+  users: AssignableUser[];
+  defaultAssigneeId: string | null;
+}) {
+  const [state, action, pending] = useActionState<ActionResult | null, FormData>(scheduleVerificationAction, null);
+  const [assignee, setAssignee] = useState(defaultAssigneeId ?? "none");
+  useActionToast(state, onClose);
+  const [inTwoDays] = useState(() => dateInputValue(new Date(Date.now() + 2 * 86_400_000)));
+  return (
+    <Frame open={open} onClose={onClose} title={t("verifications.dialog.title")} description={t("verifications.dialog.description")}>
+      <form action={action} className="flex flex-col gap-5">
+        <input type="hidden" name="issueId" value={issueId} />
+        <p className="text-body text-foreground">{issueTitle}</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field id="schedule-due" text={t("verifications.dialog.dueOn")}>
+            <Input id="schedule-due" name="dueOn" type="date" defaultValue={inTwoDays} required />
+          </Field>
+          <Field id="schedule-assignee" text={t("verifications.dialog.assignee")}>
+            <AssigneeSelect id="schedule-assignee" value={assignee} onChange={setAssignee} users={users} />
+          </Field>
+        </div>
+        <Field id="instructions" text={t("verifications.dialog.instructions")} hint={t("verifications.dialog.instructionsHint")}>
+          <Textarea id="instructions" name="instructions" rows={3} />
+        </Field>
+        <Footer pending={pending} submit={t("verifications.dialog.submit")} />
       </form>
     </Frame>
   );
@@ -231,7 +318,7 @@ function ResolveDialog({ open, onClose, issue }: { open: boolean; onClose: () =>
 function VerifyDialog({ open, onClose, issue }: { open: boolean; onClose: () => void; issue: WorkflowIssue }) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(recordOutcomeAction, null);
   useActionToast(state, onClose);
-  const today = new Date().toISOString().slice(0, 10);
+  const [today] = useState(() => dateInputValue(new Date()));
   const options: Option[] = [
     { value: "staff_evidence", label: t("issue.dialog.resultHeld") },
     { value: "guest_confirmed", label: t("issue.dialog.resultGuest") },

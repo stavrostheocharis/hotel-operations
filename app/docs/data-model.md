@@ -186,6 +186,16 @@ Every transition writes an `events` row (`issue.assigned`, `issue.resolved`,
 `issue.verified`, `issue.reopened`, `verification.due`, ...). Digests, timers
 and escalation rules consume the event log, never the issue table directly.
 
+### Verification tasks
+
+`verification_tasks` is "check that it held": an issue, a place, a due
+date, who checks (a user or a department), what to check. Completing one
+records an outcome on the issue (`staff_evidence`, `guest_confirmed`, or
+`recurred`) and moves the issue to `verified` or `reopened`; "could not
+check" only moves the date; skipping closes the task without an outcome.
+Tasks reference the issue and survive linker rebuilds with it; an outcome a
+person recorded is never deleted by a rebuild (it carries `evidence.by`).
+
 ### Who owns the status
 
 `issues.status` is what the console shows; `issues.derived_status` is what
