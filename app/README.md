@@ -18,6 +18,9 @@ pnpm dev
   and linked database: the `db:*` commands below, in that order)
 - http://localhost:3000/issues/[id] — one issue: evidence, tickets, outcomes,
   confirm / reject on every link ([docs/console.md](docs/console.md))
+- http://localhost:3000/audit — the season audit: baseline, recurring failures,
+  fixes that did not hold, winter-works list, records assessment; print it for
+  the PDF, export Markdown / CSV / JSON ([docs/audit.md](docs/audit.md))
 - http://localhost:3000/design — live design-system reference (every token and
   component, light/dark toggle in the header)
 
@@ -45,6 +48,7 @@ pnpm db:normalize --llm    # same, plus OpenAI for translation and leftovers (ne
 pnpm db:link --eval        # link signals into issues (rules only), scored against the answer key
 pnpm db:embed              # OpenAI embeddings for every signal text (needs OPENAI_API_KEY)
 pnpm db:link --embed --llm # linking with embeddings and the reasoning model on the gray zone
+pnpm db:audit --fake-llm   # season audit → data/out/audit/{audit.md, winter-works.csv, audit.json}
 pnpm db:test               # fresh test database, migrations, seed, load, normalise, vitest
 pnpm db:generate           # after editing src/db/schema/*.ts
 pnpm db:studio             # drizzle-kit studio
@@ -121,10 +125,17 @@ src/
     globals.css       theme
     page.tsx          / exceptions queue + KPIs
     issues/[id]/      one issue: evidence, tickets, outcomes, confirm / reject
+    audit/            /audit season report, export/ route for md / csv / json
     design/           /design reference route
+  audit/
+    types.ts          AuditReport
+    report.ts         buildAuditReport(): queries + assembly under withTenant
+    records.ts        records assessment: measures, thresholds, five changes
+    markdown.ts       renderMarkdown(), renderWinterWorksCsv()
+    narrative.ts      model-written summary (AI SDK) and a fake for tests
   components/
     ui/               shadcn components, restyled
-    console/          shell (header + nav), status and source badges
+    console/          shell (header + nav), status and source badges, print button
     theme-provider.tsx
     theme-toggle.tsx
   db/
