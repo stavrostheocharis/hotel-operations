@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 const NAV: { href: string; label: string; key: string }[] = [
   { href: "/", label: "Exceptions", key: "exceptions" },
+  { href: "/audit", label: "Audit", key: "audit" },
   { href: "/design", label: "Design", key: "design" },
 ];
 
@@ -16,7 +17,7 @@ const NAV: { href: string; label: string; key: string }[] = [
 export function ConsoleShell({ active, property, children }: { active: string; property?: string; children: ReactNode }) {
   return (
     <div className="flex min-h-full flex-1 flex-col bg-background">
-      <header className="sticky top-0 z-10 border-b border-border bg-background">
+      <header className="sticky top-0 z-10 border-b border-border bg-background print:hidden">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-6 px-6">
           <Link href="/" className="text-body-strong text-foreground">
             Operations Exception Manager
