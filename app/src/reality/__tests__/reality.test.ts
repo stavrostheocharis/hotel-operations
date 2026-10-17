@@ -1,5 +1,5 @@
 import { parse } from "csv-parse/sync";
-import { access, copyFile, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -7,7 +7,7 @@ import { dataDir } from "@/db/scripts/lib/paths";
 import { DATASET_BY_KEY } from "../catalogue";
 import { classifyDate, readDateColumn } from "../dates";
 import { decodeBytes, detectDelimiter, detectHeaderRow } from "../detect";
-import { normalizeHeader, scoreHeader } from "../headers";
+import { classifyFile, normalizeHeader, scoreHeader } from "../headers";
 import { buildReport, readExportFolder, renderMemo, type Facts, type FileReport, type ParsedFile, type RealityReport, type UnreadFile } from "../index";
 
 /**
@@ -36,7 +36,7 @@ beforeAll(async () => {
   } catch {
     throw new Error(`synthetic exports missing at ${fixture}; run: uv run --project data python -m generator --seed 42 --out data/out/`);
   }
-  input = await readExportFolder(fixture, { skipDirs: ["reality-check"] });
+  input = await readExportFolder(fixture);
   const built = buildReport(input, fixture, new Date("2026-12-01T09:00:00Z"));
   report = built.report;
   facts = built.facts;
@@ -100,10 +100,9 @@ describe("format detection", () => {
 });
 
 describe("dataset recognition and field mapping", () => {
-  it("recognises the nine exports and leaves the answer key unrecognised", () => {
+  it("recognises the nine exports and lists the answer key as a report, not a table", () => {
     const got = Object.fromEntries(report.files.map((f) => [f.path, f.dataset]));
     expect(got).toEqual({
-      "answer_key.json": "unknown",
       "equipment.csv": "equipment",
       "facilities.csv": "facilities",
       "front_desk_log.xlsx": "complaints",
@@ -114,7 +113,9 @@ describe("dataset recognition and field mapping", () => {
       "surveys.csv": "surveys",
       "work_orders.csv": "work_orders",
     });
-    expect(report.unread).toEqual([]);
+    expect(report.unread.map((u) => u.path)).toEqual(["answer_key.json"]);
+    expect(report.unread[0].reason).toMatch(/nested document with 2 lists of records \(issues, signals\), a report rather than a table/);
+    expect(report.files.filter((f) => f.lowConfidence)).toEqual([]);
     expect(report.datasets.filter((d) => d.status === "missing").map((d) => d.dataset)).toEqual(["compensation", "sops"]);
   });
 
@@ -223,7 +224,7 @@ describe("coverage on the full season", () => {
     expect(measure("wo_location").share).toBeGreaterThan(0.9);
     expect(measure("rv_stay_dates").verdict).toBe("info");
     expect(report.asks.some((a) => /reported via/.test(a.text))).toBe(true);
-    expect(report.asks.some((a) => /answer_key\.json/.test(a.text))).toBe(true);
+    expect(report.asks.some((a) => /answer_key\.json/.test(a.text))).toBe(false);
   });
 
   it("renders a memo with the verdict, the scorecard and no personal data", () => {
@@ -306,6 +307,82 @@ describe("a deliberately broken export", () => {
     expect(broken.memo).toContain("## Verdict: RESHAPE");
     expect(broken.memo).toContain("Minimum fields not found: **reported via**, **location as recorded**, **closure note**");
   });
+});
+
+describe("stray files in the folder", () => {
+  let dir: string;
+  let decoyed: { report: RealityReport; facts: Facts };
+
+  beforeAll(async () => {
+    dir = await mkdtemp(path.join(os.tmpdir(), "reality-decoys-"));
+    for (const name of await readdir(fixture)) {
+      if (name === "answer_key.json" || name.startsWith(".")) continue;
+      await copyFile(path.join(fixture, name), path.join(dir, name));
+    }
+    // An old audit output left in the folder: a winter-works list whose columns overlap the tickets, and a nested report.
+    await mkdir(path.join(dir, "audit"));
+    const header = "rank;priority;issue;topic;category;location;kind;episodes;reopens;closures;repeat_tickets;rooms_affected;guest_reports;first;last;evidence";
+    const rows = [
+      "1;96;Sea Wing hot water;no_hot_water;plumbing;C-BOILER;equipment;3;1;3;2;5;7;2026-06-02;2026-09-14;3 episodes, 7 guest reports",
+      "2;60;Villa 12 AC;ac_not_cooling;hvac;V12;room;3;0;3;2;1;4;2026-06-20;2026-08-30;3 episodes, 4 guest reports",
+      "3;24;Lobby lift;elevator_stuck;elevator;A-LIFT-1;equipment;2;1;3;2;0;3;2026-05-11;2026-09-02;2 episodes, 3 guest reports",
+    ];
+    await writeFile(path.join(dir, "audit", "winter-works.csv"), `\ufeff${[header, ...rows].join("\r\n")}\r\n`);
+    const nested = {
+      version: "audit-v1",
+      generatedAt: "2026-12-01T09:00:00Z",
+      property: { code: "ASTRAEA", name: "Astraea Bay Resort & Villas", timezone: "Europe/Athens" },
+      season: { from: "2026-04-01", to: "2026-10-31", label: "Season 2026" },
+      volume: { signalsTotal: 4882, bySource: [{ source: "work_order", count: 1148 }, { source: "front_desk", count: 483 }] },
+      recurring: rows.map((r, i) => ({ issueId: `ISS-0${i + 1}`, title: r.split(";")[2], topic: r.split(";")[3], category: r.split(";")[4], status: "open", locationCode: r.split(";")[5], episodes: 3, reopens: 1, closures: 3, firstAt: "2026-06-02", lastAt: "2026-09-14" })),
+      fixesHeld: { total: { closures: 1110, back7: 40, back30: 104, back90: 160 }, byMonth: [{ month: "2026-06", closures: 180, back7: 6, back30: 17, back90: 25 }] },
+    };
+    await writeFile(path.join(dir, "audit", "audit.json"), JSON.stringify(nested, null, 2));
+    const read = await readExportFolder(dir);
+    decoyed = buildReport(read, dir, new Date("2026-12-01T09:00:00Z"));
+  });
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("keeps the ticket export to the real file and sets the decoys aside", () => {
+    const wo = decoyed.report.datasets.find((d) => d.dataset === "work_orders")!;
+    expect(wo.files).toEqual(["work_orders.csv"]);
+    expect(wo.rows).toBe(1148);
+    expect(decoyed.facts.wo!.total).toBe(1148);
+    const decoy = decoyed.report.files.find((f) => f.path === "audit/winter-works.csv")!;
+    expect(decoy.dataset).toBe("unknown");
+    expect(decoy.lowConfidence?.dataset).toBe("work_orders");
+    expect(decoy.lowConfidence?.matched).toEqual(expect.arrayContaining(["location as recorded", "category or trade", "short description"]));
+    expect(decoy.lowConfidence?.why).toMatch(/identifying columns \(job id, created at, closed at, status\)/);
+    const nested = decoyed.report.unread.find((u) => u.path === "audit/audit.json")!;
+    expect(nested.reason).toMatch(/nested document with 3 lists of records \(volume\.bySource, recurring, fixesHeld\.byMonth\), a report rather than a table/);
+    expect(decoyed.report.asks.some((a) => /audit\/winter-works\.csv \(3 rows\) looked like work orders/.test(a.text))).toBe(true);
+    expect(renderMemo(decoyed.report)).toContain("Files recognised with low confidence, left out of every count above:");
+  });
+
+  it("leaves the verdict and the scorecard unchanged", () => {
+    expect(decoyed.report.decision.verdict).toBe("go");
+    expect(decoyed.report.scorecard.map((d) => `${d.dimension}:${d.colour}`)).toEqual(report.scorecard.map((d) => `${d.dimension}:${d.colour}`));
+    expect(decoyed.report.measures.map((m) => [m.key, m.value])).toEqual(report.measures.map((m) => [m.key, m.value]));
+  });
+
+  it("does not let a file name waive the identifying columns", () => {
+    // Same decoy columns, but the file is called like a ticket export: still not taken.
+    const cls = classifyFile({ ...decoyedParsed("audit/winter-works.csv"), path: "work_orders_export.csv" });
+    expect(cls.dataset).toBe("unknown");
+    expect(cls.lookedLike?.dataset).toBe("work_orders");
+  });
+
+  function decoyedParsed(name: string): ParsedFile {
+    const header = ["rank", "priority", "issue", "topic", "category", "location", "kind", "episodes", "reopens", "closures", "repeat_tickets", "rooms_affected", "guest_reports", "first", "last", "evidence"];
+    const rows = [
+      ["1", "96", "Sea Wing hot water", "no_hot_water", "plumbing", "C-BOILER", "equipment", "3", "1", "3", "2", "5", "7", "2026-06-02", "2026-09-14", "3 episodes"],
+      ["2", "60", "Villa 12 AC", "ac_not_cooling", "hvac", "V12", "room", "3", "0", "3", "2", "1", "4", "2026-06-20", "2026-08-30", "3 episodes"],
+    ].map((r) => Object.fromEntries(header.map((h, i) => [h, r[i]])));
+    return { path: name, detection: decoyed.report.files.find((f) => f.path === name)!.detection, columns: header, rows, cellKinds: {} };
+  }
 });
 
 describe("helpers", () => {

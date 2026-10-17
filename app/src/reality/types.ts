@@ -126,6 +126,8 @@ export type FileReport = {
   unmappedColumns: string[];
   /** Columns whose header says they carry a guest's or an employee's identity. Names of columns, never values. */
   identityColumns: string[];
+  /** Set when the file resembled a dataset but was not taken for it; such a file is left out of every count. */
+  lowConfidence: { dataset: DatasetKey; label: string; matched: string[]; why: string } | null;
   warnings: string[];
 };
 

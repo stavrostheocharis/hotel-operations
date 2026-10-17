@@ -7,14 +7,16 @@ the export folder as delivered, loads nothing into the database, and writes
 the go / reshape / stop memo that `docs/discovery/05-go-no-go.md` asks for.
 
 ```bash
-pnpm db:reality-check --dir=../data/out            # the synthetic season → data/out/reality-check/
+pnpm db:reality-check --dir=../data/out            # the synthetic season → data/reports/reality-check/
 pnpm db:reality-check --dir=/path/to/client/export --out=/path/to/memo
 pnpm test:unit                                      # the tests, no database needed
 ```
 
 Output: `reality-check.md` (the memo) and `reality-check.json` (the same
-report as data) in `--out`, default `<dir>/reality-check`. The run takes a
-second or two for a season; no network, no API key, no Postgres.
+report as data) in `--out`, default `data/reports/reality-check` (git-ignored,
+and outside the export folder so that stays exactly what the client
+delivered). The run takes a second or two for a season; no network, no API
+key, no Postgres.
 
 ## What the memo answers
 
@@ -26,7 +28,10 @@ the stop conditions that hold.
 **Export summary** – the nine datasets of the data request
 (`02-data-request.md`), which file(s) each came in, rows, date range,
 received or missing; the season covered, the occupied room-nights, the row
-counts the scorecard's header asks for.
+counts the scorecard's header asks for. Below it, the files recognised with
+low confidence (they resembled a dataset without qualifying, and count for
+nothing) and the files listed but not parsed (documents, nested JSON
+reports, old Excel formats), each with the reason.
 
 **Scorecard** – D1 to D6 with every measure, its value and its colour:
 
@@ -76,10 +81,13 @@ cells, so title lines are skipped. XLSX: per sheet the same header search in
 the top 25 rows; sheets with identical columns are read as one table, and
 "one sheet per month" when their names are months in English, Greek,
 German, French or Italian; sheets with different columns become separate
-tables (`file.xlsx#Sheet`). JSON: the largest array of records in the
-document, flattened one level, with the record shapes counted by a
-discriminator such as `platform`. PDF / DOCX are listed as documents; `.xls`
-and archives are listed with the ask to re-save.
+tables (`file.xlsx#Sheet`). JSON: a table is one list of records, either a
+top-level array or an object wrapping exactly one such list (metadata beside
+it, at most one level down); the records are flattened one level and their
+shapes counted by a discriminator such as `platform`. A document with
+several lists of records, or none, is a report rather than a table and is
+listed as not parsed with that reason. PDF / DOCX are listed as documents;
+`.xls` and archives are listed with the ask to re-save.
 
 Dates (`dates.ts`) are recognised as `YYYY-MM-DD`, `YYYY-MM-DD HH:MM`, ISO
 8601 with a zone, `DD/MM/YYYY`, `DD.MM.YYYY`, `DD-MM-YYYY` (each with an
@@ -103,10 +111,30 @@ number" is reported as not present. A column feeds one field; a field may
 take several columns when the data comes split (review text in `positive`
 and `negative`, question scores).
 
-A file is taken for a dataset when one of the dataset's core fields and
-three minimum fields match confidently (or two and a clue in the file name).
-Otherwise it is "not recognised" and the memo asks what it is: the answer
-key in `data/out` lands there on purpose.
+A file is taken for a dataset only when, confidently matched (85% or
+better):
+
+- at least two of the dataset's **identifying columns** are present (for
+  work orders: job id, created at, closed at, status; for stays: stay key,
+  arrival, departure; and so on in `catalogue.ts`). A file name never waives
+  this: a list that shares a category and a location column with the tickets
+  is not the ticket export;
+- one of the dataset's **core fields** is present (free text for tickets and
+  complaints, a score or comment for surveys, …);
+- at least 40% of the minimum fields, and never fewer than three, are
+  present, one fewer when the file name names the dataset;
+- the mapping score reaches a floor set by the number of minimum fields.
+
+A file that resembles a dataset (two or more minimum fields matched) without
+qualifying is reported as **recognised with low confidence**, with the
+columns that matched and the reason, and counts for nothing. When several
+files qualify for one dataset, the strongest is the dataset's file; the
+others stay only when they map the same data-request fields (a second month
+of the same export) and are otherwise set aside the same way, so a stray
+report never swells the row counts. The rule lives in `eligibility()` in
+`headers.ts`; the test drops an old winter-works list and a nested audit
+report into a copy of the fixture and checks that the ticket count and the
+verdict do not move.
 
 ## What counts
 

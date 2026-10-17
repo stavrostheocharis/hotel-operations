@@ -29,6 +29,14 @@ export type DatasetSpec = {
   nameHints: RegExp;
   /** At least one of these must match confidently before a file is taken for this dataset. */
   coreFields: string[];
+  /**
+   * The columns that identify a record of this dataset (when, which): at
+   * least `minKeys` of them must match confidently, whatever the file name
+   * says. A list that merely shares a category and a location column with
+   * the tickets is not the ticket export.
+   */
+  keyFields: string[];
+  minKeys: number;
   fields: FieldSpec[];
   /** Fields that carry the record's own date, in order of preference, for the date range. */
   dateFields: string[];
@@ -52,6 +60,8 @@ export const DATASETS: DatasetSpec[] = [
     priority: "must",
     nameHints: /work[_ -]?orders?|tickets?|maintenance|engineering|\bjobs?\b|\bwo\b|hotsos|flexkeeping|hotelkit|quore|knowcross|alice|tasks?|βλάβ|συντήρησ/i,
     coreFields: ["description", "location", "closure_note"],
+    keyFields: ["id", "created_at", "closed_at", "status"],
+    minKeys: 2,
     dateFields: ["created_at", "closed_at"],
     textFields: ["description", "closure_note"],
     fields: [
@@ -82,6 +92,8 @@ export const DATASETS: DatasetSpec[] = [
     priority: "must",
     nameHints: /front[_ -]?desk|complaints?|guest[_ -]?(relations?|log)|\blog\b|traces?|duty[_ -]?manager|παράπον|ρεσεψιόν/i,
     coreFields: ["description", "resolution"],
+    keyFields: ["id", "occurred_at", "description", "resolution"],
+    minKeys: 2,
     dateFields: ["occurred_at", "resolved_at"],
     textFields: ["description", "resolution", "agent_note"],
     fields: [
@@ -112,6 +124,8 @@ export const DATASETS: DatasetSpec[] = [
     priority: "nice",
     nameHints: /compensation|goodwill|rebates?|adjustments?|refunds?|gestures?|allowances?|αποζημ/i,
     coreFields: ["value", "reason"],
+    keyFields: ["date", "stay_key", "value"],
+    minKeys: 2,
     dateFields: ["date"],
     textFields: ["reason"],
     fields: [
@@ -130,6 +144,8 @@ export const DATASETS: DatasetSpec[] = [
     priority: "should",
     nameHints: /surveys?|questionnaires?|feedback|\bnps\b|trustyou|reviewpro|revinate|guestrevu|medallia|qualtrics|typeform|ερωτηματολ|ικανοποίησ/i,
     coreFields: ["overall", "comment", "topic_scores"],
+    keyFields: ["id", "stay_key", "submitted_at", "departure_date", "overall"],
+    minKeys: 2,
     dateFields: ["submitted_at", "departure_date"],
     textFields: ["comment"],
     fields: [
@@ -156,6 +172,8 @@ export const DATASETS: DatasetSpec[] = [
     priority: "should",
     nameHints: /reviews?|tripadvisor|booking|google|holidaycheck|reputation|κριτικ/i,
     coreFields: ["text", "rating"],
+    keyFields: ["id", "platform", "review_date", "rating"],
+    minKeys: 2,
     dateFields: ["review_date"],
     textFields: ["text", "title"],
     fields: [
@@ -180,6 +198,8 @@ export const DATASETS: DatasetSpec[] = [
     priority: "must",
     nameHints: /\bstays?\b|reservations?|bookings?|\bpms\b|in[_ -]?house|arrivals|guest[_ -]?list|κρατήσ|διαμον/i,
     coreFields: ["arrival", "departure"],
+    keyFields: ["stay_key", "arrival", "departure"],
+    minKeys: 2,
     dateFields: ["arrival", "departure"],
     textFields: [],
     fields: [
@@ -206,6 +226,8 @@ export const DATASETS: DatasetSpec[] = [
     priority: "must",
     nameHints: /occupancy|\bocc\b|daily|flash|manager.?s?[_ -]?report|πληρότ/i,
     coreFields: ["rooms_occupied", "rooms_available"],
+    keyFields: ["date", "rooms_occupied", "rooms_available"],
+    minKeys: 2,
     dateFields: ["date"],
     textFields: [],
     fields: [
@@ -226,6 +248,8 @@ export const DATASETS: DatasetSpec[] = [
     priority: "must",
     nameHints: /rooms?|room[_ -]?(list|matrix|table)|units?|δωμάτι/i,
     coreFields: ["room_code"],
+    keyFields: ["room_code", "building", "floor"],
+    minKeys: 2,
     dateFields: [],
     textFields: [],
     fields: [
@@ -245,6 +269,8 @@ export const DATASETS: DatasetSpec[] = [
     priority: "must",
     nameHints: /facilit|outlets?|areas?|public|venues?|εγκαταστάσ|χώροι/i,
     coreFields: ["name"],
+    keyFields: ["code", "name", "type"],
+    minKeys: 2,
     dateFields: [],
     textFields: [],
     fields: [
@@ -261,6 +287,8 @@ export const DATASETS: DatasetSpec[] = [
     priority: "must",
     nameHints: /equipment|assets?|plant|\bbms\b|machinery|εξοπλισμ|μηχανήμ/i,
     coreFields: ["name", "id"],
+    keyFields: ["id", "name", "type"],
+    minKeys: 2,
     dateFields: [],
     textFields: [],
     fields: [

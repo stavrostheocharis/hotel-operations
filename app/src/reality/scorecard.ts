@@ -512,7 +512,10 @@ export function score(f: Facts): Scored {
     pushAsk({ dimension: null, dataset: null, text: `${u.path}: ${u.reason}.` });
   }
   for (const file of f.files) {
-    if (file.dataset === "unknown") {
+    if (file.dataset === "unknown" && file.lowConfidence) {
+      const lc = file.lowConfidence;
+      pushAsk({ dimension: null, dataset: lc.dataset, text: `${file.path} (${int(file.rows)} rows) looked like ${lower(lc.label)} (${lc.matched.map((m) => `“${m}”`).join(", ")} matched) but was not taken for it: ${lc.why}. It is left out of every count. Tell us what it is, or leave it out of the next delivery.` });
+    } else if (file.dataset === "unknown") {
       pushAsk({ dimension: null, dataset: null, text: `${file.path} (${int(file.rows)} rows, columns: ${file.unmappedColumns.slice(0, 8).map((c) => `“${c}”`).join(", ")}${file.unmappedColumns.length > 8 ? ", …" : ""}) was not recognised as one of the nine datasets. Tell us what it is, or leave it out of the next delivery.` });
     }
     if (/not UTF-8/.test(file.detection.encoding)) pushAsk({ dimension: null, dataset: file.dataset, text: `${file.path} is encoded as ${file.detection.encoding}. Re-export as UTF-8 so Greek text survives; we read it this time by guessing the code page.` });

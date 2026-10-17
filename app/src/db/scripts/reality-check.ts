@@ -1,13 +1,14 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { runRealityCheck } from "@/reality";
-import { dataDir } from "./lib/paths";
+import { dataDir, repoRoot } from "./lib/paths";
 
 /**
  * pnpm db:reality-check --dir=<folder> [--out=DIR] [--quiet]
  *
  *   --dir=FOLDER   the client's export folder as delivered (CSV / XLSX / JSON; default: data/out)
- *   --out=DIR      where to write reality-check.md and reality-check.json (default: <dir>/reality-check)
+ *   --out=DIR      where to write reality-check.md and reality-check.json (default: data/reports/reality-check,
+ *                  outside the export folder so it stays exactly what the client delivered)
  *   --quiet        no summary on stdout
  *
  * Reads the folder in memory and writes the go / reshape / stop memo. Needs
@@ -19,7 +20,7 @@ async function main() {
   const opt = (name: string) => args.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 
   const dir = path.resolve(process.cwd(), opt("dir") ?? dataDir());
-  const out = path.resolve(process.cwd(), opt("out") ?? path.join(dir, "reality-check"));
+  const out = path.resolve(process.cwd(), opt("out") ?? path.join(repoRoot, "data", "reports", "reality-check"));
   const t0 = Date.now();
   const { report, memo } = await runRealityCheck(dir, { skipDirs: [out] });
 

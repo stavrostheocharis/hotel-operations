@@ -60,7 +60,7 @@ delivered (CSV / XLSX / JSON, any delimiter, encoding or column names) and write
 go / reshape / stop memo of `docs/discovery/05-go-no-go.md`, without a database:
 
 ```bash
-pnpm db:reality-check --dir=../data/out                  # → data/out/reality-check/reality-check.md
+pnpm db:reality-check --dir=../data/out                  # → data/reports/reality-check/reality-check.md
 pnpm db:reality-check --dir=/path/to/export --out=/path/to/memo
 ```
 

@@ -52,8 +52,8 @@ export async function readExportFolder(dir: string, opts: ReadOptions = {}): Pro
         files.push(...(await readXlsx(abs, rel, bytes, opts)));
       } else if (ext === ".json" || ext === ".jsonl" || ext === ".ndjson") {
         const parsed = await readJson(abs, rel, bytes, opts);
-        if (parsed) files.push(parsed);
-        else unread.push({ path: rel, bytes, format: "json", reason: "no array of records found in the document" });
+        if ("reason" in parsed) unread.push({ path: rel, bytes, format: "json", reason: parsed.reason });
+        else files.push(parsed);
       } else if (DOCUMENT_EXT.has(ext)) {
         unread.push({ path: rel, bytes, format: "document", reason: "document, listed but not parsed (SOPs, plans, checklists)" });
       } else {
@@ -298,7 +298,7 @@ function isoFromExcelDate(d: Date): string {
 
 type JsonRecord = Record<string, unknown>;
 
-async function readJson(abs: string, rel: string, bytes: number, opts: ReadOptions): Promise<ParsedFile | null> {
+async function readJson(abs: string, rel: string, bytes: number, opts: ReadOptions): Promise<ParsedFile | { reason: string }> {
   const decoded = decodeBytes(new Uint8Array(await readFile(abs)));
   const detection = baseDetection("json", bytes);
   detection.encoding = decoded.encoding;
@@ -311,12 +311,12 @@ async function readJson(abs: string, rel: string, bytes: number, opts: ReadOptio
     where = "one record per line";
   } else {
     const doc = JSON.parse(decoded.text) as unknown;
-    const found = findRecords(doc);
-    if (!found) return null;
+    const found = tableOf(doc);
+    if ("reason" in found) return { reason: found.reason };
     records = found.records;
     where = found.path ? `records under “${found.path}”` : "a top-level array of records";
   }
-  if (!records.length) return null;
+  if (!records.length) return { reason: "no records in the document" };
   if (opts.maxRows) records = records.slice(0, opts.maxRows);
   const columns: string[] = [];
   const seen = new Set<string>();
@@ -342,20 +342,43 @@ async function readJson(abs: string, rel: string, bytes: number, opts: ReadOptio
   return { path: rel, detection, columns, rows, cellKinds };
 }
 
-function findRecords(doc: unknown, depth = 0, at = ""): { records: JsonRecord[]; path: string } | null {
-  if (Array.isArray(doc)) {
-    const objects = doc.filter((x) => x && typeof x === "object" && !Array.isArray(x)) as JsonRecord[];
-    return objects.length >= Math.max(1, doc.length * 0.9) ? { records: objects, path: at } : null;
-  }
-  if (doc && typeof doc === "object" && depth < 3) {
-    let best: { records: JsonRecord[]; path: string } | null = null;
-    for (const [k, v] of Object.entries(doc as JsonRecord)) {
-      const hit = findRecords(v, depth + 1, at ? `${at}.${k}` : k);
-      if (hit && (!best || hit.records.length > best.records.length)) best = hit;
+type RecordList = { records: JsonRecord[]; path: string };
+
+function recordList(value: unknown, path: string): RecordList | null {
+  if (!Array.isArray(value) || !value.length) return null;
+  const objects = value.filter((x) => x && typeof x === "object" && !Array.isArray(x)) as JsonRecord[];
+  return objects.length >= value.length * 0.9 ? { records: objects, path } : null;
+}
+
+/**
+ * A JSON export is a table when it is one list of records: a top-level array,
+ * or an object that wraps exactly one such list (with metadata beside it, at
+ * most one level down). A document with several lists, or none, is a report
+ * or a nested object, not a table, and is listed with that reason.
+ */
+function tableOf(doc: unknown): RecordList | { reason: string } {
+  const top = recordList(doc, "");
+  if (top) return top;
+  if (Array.isArray(doc)) return { reason: `array of ${doc.length} values that are not records, not a table` };
+  if (!doc || typeof doc !== "object") return { reason: "a single JSON value, not a table" };
+  const lists: RecordList[] = [];
+  for (const [k, v] of Object.entries(doc as JsonRecord)) {
+    const direct = recordList(v, k);
+    if (direct) {
+      lists.push(direct);
+      continue;
     }
-    return best;
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      for (const [k2, v2] of Object.entries(v as JsonRecord)) {
+        const nested = recordList(v2, `${k}.${k2}`);
+        if (nested) lists.push(nested);
+      }
+    }
   }
-  return null;
+  const keys = Object.keys(doc as JsonRecord);
+  if (lists.length === 1) return lists[0];
+  if (!lists.length) return { reason: `nested object with ${keys.length} keys (${keys.slice(0, 6).join(", ")}${keys.length > 6 ? ", …" : ""}) and no list of records, not a table` };
+  return { reason: `nested document with ${lists.length} lists of records (${lists.map((l) => l.path).slice(0, 6).join(", ")}${lists.length > 6 ? ", …" : ""}), a report rather than a table` };
 }
 
 function flatten(rec: JsonRecord, prefix = ""): Row {

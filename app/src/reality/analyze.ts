@@ -125,6 +125,7 @@ const LANGUAGE_LABEL: Record<string, string> = { en: "English", el: "Greek", "el
 
 export function analyze(input: { files: ParsedFile[]; unread: UnreadFile[] }): Facts {
   const projected = input.files.map(projectFile);
+  reconcile(projected);
   const byDataset = new Map<DatasetKey, Projected[]>();
   for (const p of projected) byDataset.set(p.report.dataset, [...(byDataset.get(p.report.dataset) ?? []), p]);
 
@@ -186,6 +187,43 @@ export function analyze(input: { files: ParsedFile[]; unread: UnreadFile[] }): F
   const pii = scanPii(projected);
 
   return { files: projected.map((p) => p.report), unread: input.unread, datasets, present, missingFields, season, wo, fd, sv, rv, st, oc, master, pii };
+}
+
+/**
+ * When several files were taken for one dataset, the strongest is the
+ * dataset's file; the others stay only when they are the same shape (the same
+ * data-request fields mapped: a second month of the same export). Anything
+ * else is demoted to "recognised with low confidence" and left out of the
+ * counts, so a stray report never adds its rows to the tickets.
+ */
+function reconcile(projected: Projected[]): void {
+  const groups = new Map<DatasetKey, Projected[]>();
+  for (const p of projected) if (p.mapping) groups.set(p.report.dataset, [...(groups.get(p.report.dataset) ?? []), p]);
+  for (const [key, group] of groups) {
+    if (group.length < 2) continue;
+    group.sort((a, b) => b.mapping!.score - a.mapping!.score || b.file.rows.length - a.file.rows.length);
+    const primary = group[0];
+    const shape = (p: Projected) => p.mapping!.fields.filter((f) => f.method !== "missing").map((f) => f.field).sort().join(",");
+    const primaryShape = shape(primary);
+    for (const other of group.slice(1)) {
+      if (shape(other) === primaryShape) continue;
+      const matched = other.mapping!.fields.filter((f) => f.method !== "missing").map((f) => f.label);
+      demote(other, { dataset: key, label: DATASET_LABELS[key], matched, why: `a different shape from ${primary.file.path}, which is the ${DATASET_LABELS[key].toLowerCase()} export` });
+    }
+  }
+}
+
+function demote(p: Projected, lowConfidence: NonNullable<FileReport["lowConfidence"]>): void {
+  p.mapping = null;
+  p.records = [];
+  p.report.dataset = "unknown";
+  p.report.datasetLabel = DATASET_LABELS.unknown;
+  p.report.priority = null;
+  p.report.fields = [];
+  p.report.unmappedColumns = p.file.columns;
+  p.report.lowConfidence = lowConfidence;
+  p.report.dateRange = null;
+  p.report.languages = [];
 }
 
 /** Classify one file and read it into records keyed by field. */
@@ -283,6 +321,7 @@ function projectFile(file: ParsedFile): Projected {
     fields: mapping?.fields ?? [],
     unmappedColumns: mapping ? mapping.unmapped : file.columns,
     identityColumns,
+    lowConfidence: cls.lookedLike ? { dataset: cls.lookedLike.dataset, label: DATASET_LABELS[cls.lookedLike.dataset], matched: cls.lookedLike.matched, why: cls.lookedLike.why } : null,
     warnings,
   };
   return { file, report, mapping, records };

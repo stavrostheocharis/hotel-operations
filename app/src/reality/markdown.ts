@@ -40,6 +40,15 @@ export function renderMemo(r: RealityReport): string {
     `Row counts: ${["work_orders", "complaints", "surveys", "reviews", "stays"].map((k) => `${LABEL_SHORT[k]} ${r.summary.rowCounts[k as keyof typeof r.summary.rowCounts] === undefined ? "–" : int(r.summary.rowCounts[k as keyof typeof r.summary.rowCounts]!)}`).join(" · ")}.`,
     missing.length ? `Not received: ${missing.map((d) => d.label.replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase())).join(", ")}.` : "Every dataset of the data request was received.",
   ]);
+  const lowConfidence = r.files.filter((f) => f.lowConfidence);
+  if (lowConfidence.length) {
+    p("Files recognised with low confidence, left out of every count above:");
+    table(
+      out,
+      ["File", "Rows", "Looked like", "Columns that matched", "Why not taken"],
+      lowConfidence.map((f) => [code(f.path), int(f.rows), f.lowConfidence!.label, f.lowConfidence!.matched.join(", "), f.lowConfidence!.why]),
+    );
+  }
   if (r.unread.length) {
     p("Files listed but not parsed:");
     table(out, ["File", "Size", "Why"], r.unread.map((u) => [code(u.path), size(u.bytes), u.reason]));
@@ -101,7 +110,7 @@ export function renderMemo(r: RealityReport): string {
 
 function renderFile(out: string[], f: FileReport): void {
   const d = f.detection;
-  out.push(`### ${code(f.path)} → ${f.datasetLabel}${f.priority ? ` (${PRIORITY[f.priority]})` : ""}`, "");
+  out.push(`### ${code(f.path)} → ${f.datasetLabel}${f.priority ? ` (${PRIORITY[f.priority]})` : ""}${f.lowConfidence ? ` — looked like ${f.lowConfidence.label.toLowerCase()}, left out of the counts` : ""}`, "");
   const format: string[] = [];
   if (d.format === "csv") format.push(`CSV, ${delimiterName(d.delimiter)}, ${d.encoding}${d.lineEndings ? `, ${d.lineEndings} line endings` : ""}, header on line ${d.headerRow ?? 1}`);
   if (d.format === "xlsx") format.push(`XLSX, ${d.sheets.length} sheet(s)${d.oneSheetPerMonth ? " — one sheet per month" : ""} (${d.sheets.map((s) => `${s.name}: ${int(s.rows)}`).join(", ")}), header on row ${d.headerRow ?? 1}${d.sheets[0]?.title ? `, title row above it` : ""}`);
@@ -125,6 +134,7 @@ function renderFile(out: string[], f: FileReport): void {
     if (missingOptional.length) out.push(`Helpful fields not present: ${missingOptional.map((x) => x.label).join(", ")}.`, "");
     if (f.unmappedColumns.length) out.push(`Columns not placed: ${f.unmappedColumns.map(code).join(", ")}.`, "");
   } else if (f.dataset === "unknown") {
+    if (f.lowConfidence) out.push(`Matched ${f.lowConfidence.matched.map((m) => `**${m}**`).join(", ")} of the ${f.lowConfidence.label.toLowerCase()} fields, but ${f.lowConfidence.why}.`, "");
     out.push(`Columns: ${f.unmappedColumns.map(code).join(", ")}.`, "");
   }
 }

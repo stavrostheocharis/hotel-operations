@@ -233,28 +233,80 @@ function rank(m: FieldMatch["method"]): number {
   return m === "exact" ? 3 : m === "synonym" ? 2 : m === "fuzzy" ? 1 : 0;
 }
 
-export type Classification = { dataset: DatasetKey; mapping: Mapping | null; alternatives: { dataset: DatasetKey; score: number }[] };
+export type LookedLike = {
+  dataset: DatasetKey;
+  /** Labels of the data-request fields that matched. */
+  matched: string[];
+  /** Why the file was not taken for the dataset. */
+  why: string;
+};
+
+export type Classification = {
+  dataset: DatasetKey;
+  mapping: Mapping | null;
+  alternatives: { dataset: DatasetKey; score: number }[];
+  /** Set when the file resembled a dataset without qualifying for it. */
+  lookedLike: LookedLike | null;
+};
+
+export type Eligibility = { eligible: boolean; strong: number; needStrong: number; keys: number; core: boolean; floor: number; why: string[] };
+
+const CONFIDENT = 0.85;
+
+/**
+ * The rule. A file is taken for a dataset when, confidently matched (≥ 85%):
+ *   - at least `minKeys` of the dataset's identifying columns (job id,
+ *     created at … for tickets) are present — a file name never waives this;
+ *   - one of the dataset's core fields is present;
+ *   - at least 40% of the minimum fields, and never fewer than three, are
+ *     present (one fewer when the file name names the dataset);
+ *   - the mapping score reaches a floor set by the number of minimum fields
+ *     (0.6 per field, 0.5 with a name clue).
+ */
+export function eligibility(dataset: DatasetSpec, mapping: Mapping, hint: boolean): Eligibility {
+  const required = dataset.fields.filter((f) => f.required).length;
+  const confident = (f: FieldMatch) => f.method !== "missing" && f.confidence >= CONFIDENT;
+  const strong = mapping.fields.filter((f) => f.required && confident(f)).length;
+  const base = Math.min(required, Math.max(3, Math.ceil(0.4 * required)));
+  const needStrong = hint ? Math.max(2, base - 1) : base;
+  const keys = mapping.fields.filter((f) => dataset.keyFields.includes(f.field) && confident(f)).length;
+  const core = mapping.fields.some((f) => dataset.coreFields.includes(f.field) && confident(f));
+  const floor = hint ? Math.max(3, 0.5 * required) : Math.max(4, 0.6 * required);
+  const why: string[] = [];
+  const labelOf = (key: string) => dataset.fields.find((f) => f.key === key)?.label ?? key;
+  if (keys < dataset.minKeys) why.push(`only ${keys} of the identifying columns (${dataset.keyFields.map(labelOf).join(", ")}) found, ${dataset.minKeys} needed`);
+  if (!core) why.push(`none of its core columns (${dataset.coreFields.map(labelOf).join(", ")}) found`);
+  if (strong >= needStrong && mapping.score < floor) why.push("too few columns matched overall");
+  if (strong < needStrong) why.push(`${strong} of the ${needStrong} minimum fields needed`);
+  return { eligible: keys >= dataset.minKeys && core && strong >= needStrong && mapping.score >= floor, strong, needStrong, keys, core, floor, why };
+}
 
 /**
  * Which dataset of the data request a file is. The file name is a clue, the
- * columns are the evidence: a file needs one of the dataset's core fields and
- * three confidently matched minimum fields (or a name clue and two) before it
- * is taken for a dataset.
+ * columns are the evidence; see `eligibility` for the rule. A file that
+ * resembles a dataset without qualifying is reported as such, with the
+ * columns that matched and the reason, so a stray report never swells the
+ * counts silently.
  */
 export function classifyFile(file: ParsedFile): Classification {
   const name = file.path.toLowerCase();
   const scored = DATASETS.map((dataset) => {
     const mapping = mapColumns(file, dataset);
     const hint = dataset.nameHints.test(name);
-    const strongRequired = mapping.fields.filter((f) => f.required && f.method !== "missing" && f.confidence >= 0.85).length;
-    const anyRequired = mapping.fields.filter((f) => f.required && f.method !== "missing").length;
-    const core = mapping.fields.some((f) => dataset.coreFields.includes(f.field) && f.method !== "missing" && f.confidence >= 0.85);
-    const eligible = core && ((strongRequired >= 3 && mapping.score >= 6) || (hint && anyRequired >= 2 && mapping.score >= 4));
-    return { dataset, mapping, score: mapping.score + (hint ? 4 : 0), eligible };
+    const e = eligibility(dataset, mapping, hint);
+    return { dataset, mapping, score: mapping.score + (hint ? 4 : 0), e };
   });
   scored.sort((a, b) => b.score - a.score);
   const alternatives = scored.slice(0, 3).map((s) => ({ dataset: s.dataset.key, score: Math.round(s.score * 10) / 10 }));
-  const best = scored.find((s) => s.eligible);
-  if (!best) return { dataset: "unknown", mapping: null, alternatives };
-  return { dataset: best.dataset.key, mapping: best.mapping, alternatives };
+  const best = scored.find((s) => s.e.eligible);
+  if (best) return { dataset: best.dataset.key, mapping: best.mapping, alternatives, lookedLike: null };
+  const resemblance = scored.find((s) => s.e.strong >= 2);
+  const lookedLike: LookedLike | null = resemblance
+    ? {
+        dataset: resemblance.dataset.key,
+        matched: resemblance.mapping.fields.filter((f) => f.method !== "missing").map((f) => f.label),
+        why: resemblance.e.why.join("; "),
+      }
+    : null;
+  return { dataset: "unknown", mapping: null, alternatives, lookedLike };
 }
