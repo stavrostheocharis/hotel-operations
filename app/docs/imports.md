@@ -46,7 +46,15 @@ this order:
 - **rooms, facilities, equipment** → `locations`, created only when the
   code is new, with the same alias builders the seed uses
   (`src/db/scripts/lib/locations.ts`); villas sit under their building,
-  hotel rooms under a floor; `serves` text becomes `location_links`.
+  hotel rooms under a floor. A place without a code in the export gets
+  one from its name, transliterated (`src/db/scripts/lib/codes.ts`:
+  Πισίνα → `PISINA`, never `X`), with a short hash appended when another
+  place already holds that code. The `serves` text becomes
+  `location_links` through `parseServes()`, which knows only the
+  property's own buildings and facilities (codes, names, aliases and the
+  distinctive words of their names, in any language) plus the phrasings
+  "all rooms in …", "building …", "floors 1-3 …"; what it cannot place is
+  kept on the equipment as `serves_unresolved`.
 - **stays** → `pii.stay_keys` (the key, never a name) and one `pms` signal
   per stay whose `external_id` is the stay's pseudonym (`stayRef`); the
   reservation number and the nationality never reach `raw` or `mapped`.

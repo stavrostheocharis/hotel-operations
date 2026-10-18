@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { schema, type Db } from "@/db";
-import { buildingAliases, equipmentAliases, facilityAliases, floorAliases, floorCode, LocationResolver, parseServes, roomAliases, type BuildingDef } from "@/db/scripts/lib/locations";
+import { buildingAliases, equipmentAliases, facilityAliases, floorAliases, floorCode, knownPlaces, LocationResolver, parseServes, roomAliases, type BuildingDef } from "@/db/scripts/lib/locations";
+import { hash4, slugCode } from "@/db/scripts/lib/codes";
 import { staffRef, stayRef } from "@/db/scripts/lib/stay-ref";
 import { zonedToUtc } from "@/db/scripts/lib/time";
 import { findProperty } from "@/db/scripts/seed";
@@ -80,13 +81,21 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
     return { id: ins.id, created: true };
   };
 
+  /** A code for a place named in the export: the slug, or the slug plus a hash when another place already took it. */
+  const codeFor = (text: string, name: string): string => {
+    const base = slugCode(text);
+    const taken = locationRows.find((l) => l.code.toUpperCase() === base);
+    if (!taken || taken.name.trim().toLowerCase() === name.trim().toLowerCase()) return base;
+    return `${base.slice(0, 19)}-${hash4(name)}`;
+  };
+
   const buildingFor = async (text: string | undefined, name?: string): Promise<{ id: string; code: string } | null> => {
     if (!text?.trim()) return null;
     const hit = resolver.resolve(text);
     const found = hit ? locationRows.find((l) => l.id === hit.id) : undefined;
     if (found?.kind === "building") return { id: found.id, code: found.code };
-    const code = slugCode(text);
-    const def: BuildingDef = { code, name: (name ?? text).trim(), floors: [] };
+    const def: BuildingDef = { code: codeFor(text, (name ?? text).trim()), name: (name ?? text).trim(), floors: [] };
+    const code = def.code;
     const { id } = await upsert({ kind: "building", code, name: def.name, parentId: root.id, aliases: [text.trim(), ...buildingAliases(def)] });
     resolver = new LocationResolver(locationRows);
     return { id, code };
@@ -133,7 +142,7 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
         for (const { rec } of recs) {
           const name = (rec.name ?? "").trim();
           if (!name) continue;
-          const code = (rec.code ?? "").trim().toUpperCase() || slugCode(name);
+          const code = (rec.code ?? "").trim().toUpperCase() || codeFor(name, name);
           const f = { code, name, type: rec.type ?? "", area: rec.area ?? "", notes: rec.notes ?? "" };
           await upsert({ kind: "facility", code, name, parentId: root.id, aliases: facilityAliases(f), attributes: { type: f.type, area: f.area, notes: f.notes } });
         }
@@ -141,11 +150,11 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
         break;
       }
       case "equipment": {
-        const known = { buildings: new Set(locationRows.filter((l) => l.kind === "building").map((l) => l.code)), facilities: new Map(locationRows.filter((l) => l.kind === "facility").flatMap((l) => [[l.code, l.code], [l.name, l.code], ...l.aliases.map((a) => [a, l.code] as [string, string])])) };
+        const known = knownPlaces(locationRows);
         for (const { rec } of recs) {
           const name = (rec.name ?? "").trim();
           if (!name) continue;
-          const id = (rec.id ?? "").trim().toUpperCase() || slugCode(name);
+          const id = (rec.id ?? "").trim().toUpperCase() || codeFor(name, name);
           const building = await buildingFor(rec.building);
           const e = { id, name, type: rec.type ?? "", building: building?.code ?? "", locationText: rec.location ?? "", serves: rec.serves ?? "", installedYear: rec.installed_year ?? "" };
           const { codes, unresolved } = parseServes(e.serves, known);
@@ -356,13 +365,5 @@ function hashOf(raw: Rec): string {
   return createHash("sha1").update(JSON.stringify(raw)).digest("hex").slice(0, 16);
 }
 
-function slugCode(text: string): string {
-  const s = text
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-  return s.slice(0, 24) || "X";
-}
 
 export type { ParsedFile, FileMapping };

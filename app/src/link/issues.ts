@@ -138,10 +138,8 @@ function rootCauseLocation(sorted: LinkSignal[], pairs: CandidatePair[], topic: 
   if (clustered && rooms.length >= 2) {
     const building = majority(sorted.map((s) => s.building));
     if (building && topic) {
-      for (const suffix of BUILDING_SCOPED_TOPICS[topic] ?? []) {
-        const code = `${building}-${suffix}`;
-        if (index.has(code)) return code;
-      }
+      const [plant] = index.equipmentIn(building, BUILDING_SCOPED_TOPICS[topic] ?? []);
+      if (plant) return plant;
       const floors = [...new Set(rooms.map((r) => `${building}/${r[0]}`))];
       if (floors.length === 1 && index.floors.has(floors[0])) return floors[0];
       return building;

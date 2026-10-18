@@ -84,6 +84,15 @@ of section A is a few days.
    codes (`src/db/scripts/lib/locations.ts:132-161`, `LIFT-1`,
    `BUILDING_SCOPED_TOPICS`), so a real property gets no equipment links.
    Transliterate or hash codes, make the serves parser data-driven.
+   **Fixed on `pilot-blockers`:** codes are transliterated (ELOT-style,
+   `src/db/scripts/lib/codes.ts`: Πισίνα → `PISINA`) with a short hash
+   when another place holds the code; `parseServes` knows only the
+   property's own buildings and facilities (codes, names, aliases,
+   distinctive name words, "all rooms in …" in English and Greek) and no
+   demo code; shared plant is matched by equipment type (`boiler`,
+   `pump`, `chiller`, `elevator`, `access_control`) in the linker's
+   cluster rule, the root-cause step and the normaliser. The demo season
+   links and audits exactly as before.
 6. **Two small auth bugs with user-facing effect.** `safeNext` accepts
    `/\evil.com` (open redirect, `src/auth/actions.ts:34-37` and the sign-in
    page); a user whose only property access is removed loops between

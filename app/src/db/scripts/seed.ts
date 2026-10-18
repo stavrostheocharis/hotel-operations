@@ -15,6 +15,7 @@ import {
   facilityAliases,
   floorAliases,
   floorCode,
+  knownPlaces,
   parseServes,
   roomAliases,
   type BuildingDef,
@@ -219,10 +220,10 @@ export async function seed(db: Db, opts: SeedOptions = {}): Promise<SeedResult> 
 
   // Equipment and what it serves.
   const equipment = await readEquipment(dir);
-  const known = {
-    buildings: new Set(buildingIds.keys()),
-    facilities: new Map([...facilityIds.keys()].map((c) => [c, c])),
-  };
+  const known = knownPlaces([
+    ...cfg.buildings.map((b) => ({ kind: "building", code: b.code, name: b.name, aliases: buildingAliases({ code: b.code, name: b.name, greekName: b.greek_name, marketingName: b.marketing_name, floors: [] }) })),
+    ...facilities.map((f) => ({ kind: "facility", code: f.code, name: f.name, aliases: facilityAliases(f) })),
+  ]);
   const unresolvedServes: string[] = [];
   let links = 0;
   for (const e of equipment) {
