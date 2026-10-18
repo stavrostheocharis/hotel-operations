@@ -12,9 +12,10 @@ import {
 } from "./lib/data-files";
 import { LocationResolver } from "./lib/locations";
 import { dataDir } from "./lib/paths";
+import { parseDmyHm } from "./lib/time";
 import { stayRef } from "./lib/stay-ref";
 import { findProperty } from "./seed";
-import { scrubPii, scrubValue } from "@/normalize/pii";
+import { insertSignalsScrubbed } from "@/import/signals";
 
 type SignalInsert = typeof schema.signals.$inferInsert;
 
@@ -66,59 +67,11 @@ export async function loadSynthetic(
   const skipped: Record<string, number> = {};
   const located: Record<string, number> = {};
 
-  const insertSignals = async (source: string, unscrubbed: SignalInsert[]) => {
-    // Personal data is removed before anything is stored: free text and every
-    // string in the raw row. Counts go to `normalized.pii_redactions`.
-    let piiRows = 0;
-    const rows: SignalInsert[] = unscrubbed.map((r) => {
-      const redactions: Record<string, number> = {};
-      const text = r.textOriginal ? scrubPii(r.textOriginal) : null;
-      if (text) for (const [k, n] of Object.entries(text.redactions)) redactions[k] = (redactions[k] ?? 0) + n;
-      const raw = scrubValue(r.raw ?? {}, redactions);
-      const touched = Object.keys(redactions).length > 0;
-      if (touched) piiRows++;
-      return {
-        ...r,
-        textOriginal: text ? text.text : r.textOriginal,
-        raw: raw.value,
-        ...(touched ? { normalized: { pii_redactions: redactions } } : {}),
-      };
-    });
-    if (piiRows) log(`${source}: personal data redacted in ${piiRows} rows`);
-    let ins = 0;
-    const CHUNK = 500;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const chunk = rows.slice(i, i + CHUNK);
-      const returned = await db
-        .insert(schema.signals)
-        .values(chunk)
-        .onConflictDoNothing({
-          target: [
-            schema.signals.propertyId,
-            schema.signals.source,
-            schema.signals.externalId,
-          ],
-        })
-        .returning({ id: schema.signals.id });
-      ins += returned.length;
-      if (returned.length) {
-        await db.insert(schema.events).values(
-          returned.map((r) => ({
-            ...tenant,
-            entityType: "signal",
-            entityId: r.id,
-            type: "signal.created",
-            payload: { source, batch_id: batchId },
-          })),
-        );
-      }
-    }
-    inserted[source] = ins;
-    skipped[source] = rows.length - ins;
-    located[source] = rows.filter((r) => r.locationId).length;
-    log(
-      `${source}: ${rows.length} rows, ${ins} inserted, ${rows.length - ins} already present, ${located[source]} located by exact/alias`,
-    );
+  const insertSignals = async (source: string, rows: SignalInsert[]) => {
+    const r = await insertSignalsScrubbed(db, tenant, source, rows, batchId, log);
+    inserted[source] = r.inserted;
+    skipped[source] = r.skipped;
+    located[source] = r.located;
   };
 
   const locate = (text: string) => {
@@ -147,6 +100,20 @@ export async function loadSynthetic(
         textOriginal: w.description || null,
         category: w.category || null,
         raw: w.raw,
+        mapped: {
+          id: w.externalId,
+          created_at: w.occurredAt!.toISOString(),
+          closed_at: parseDmyHm(String(w.raw["Closed"] ?? ""), tz)?.toISOString() ?? null,
+          status: w.raw["Status"] ?? null,
+          location: w.locationText,
+          category: w.category || null,
+          description: w.description || null,
+          closure_note: w.raw["Closure Note"] ?? null,
+          assigned_to: w.raw["Technician"] ?? null,
+          priority: w.raw["Priority"] ?? null,
+          reopened: w.raw["Reopened"] || null,
+          created_by: w.raw["Reported By"] ?? null,
+        },
         ingestBatchId: batchId,
         ...locate(w.locationText),
       })),
@@ -166,6 +133,16 @@ export async function loadSynthetic(
         language: null,
         textOriginal: f.guestComment || null,
         raw: f.raw,
+        mapped: {
+          id: f.externalId,
+          occurred_at: f.occurredAt!.toISOString(),
+          room: f.roomText || null,
+          description: f.guestComment || null,
+          agent_note: f.agentNote || null,
+          department: f.raw["Dept"] ?? null,
+          resolution: f.raw["Resolution"] ?? null,
+          shift: f.raw["Shift"] ?? null,
+        },
         ingestBatchId: batchId,
         ...locate(f.roomText),
       })),
@@ -199,6 +176,7 @@ export async function loadSynthetic(
         occurredAt: s.checkIn!,
         stayRef: stayRef(property.code, s.reservationNo),
         raw: s.raw,
+        mapped: { stay_key: s.reservationNo, room: s.room, arrival: s.checkIn!.toISOString(), departure: s.checkOut?.toISOString() ?? null },
         ingestBatchId: batchId,
         ...locate(s.room),
       })),
@@ -219,6 +197,16 @@ export async function loadSynthetic(
         textOriginal: s.comment || null,
         stayRef: stayRef(property.code, s.reservationNo),
         raw: s.raw,
+        mapped: {
+          id: s.externalId,
+          submitted_at: s.occurredAt!.toISOString(),
+          stay_key: s.reservationNo,
+          overall: s.raw["overall"] ?? null,
+          nps: s.raw["nps"] ?? null,
+          would_recommend: s.raw["would_recommend"] ?? null,
+          comment: s.comment || null,
+          language: s.language || null,
+        },
         ingestBatchId: batchId,
       })),
   );
@@ -237,6 +225,15 @@ export async function loadSynthetic(
         language: r.language || null,
         textOriginal: r.text || null,
         raw: r.raw,
+        mapped: {
+          id: r.externalId,
+          platform: r.platform,
+          review_date: r.occurredAt!.toISOString(),
+          rating: r.raw["rating"] ?? r.raw["score"] ?? null,
+          title: r.raw["title"] ?? null,
+          text: r.text || null,
+          language: r.language || null,
+        },
         ingestBatchId: batchId,
       })),
   );

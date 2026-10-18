@@ -33,7 +33,11 @@ not built yet say which step brings them.
   their open issues; each place with its history and what serves it
 - `/settings/locations` — aliases, what equipment serves, new places, and the
   typed spellings nothing resolved, mapped to real places
-- `/imports`, the rest of `/settings` — arriving in steps 6–7
+- `/imports` — a client's exports in: upload or take the demo folder, the
+  reality check with its verdict and mapping, load, normalise and link as a
+  background job you can watch ([docs/imports.md](docs/imports.md),
+  [docs/jobs.md](docs/jobs.md))
+- the rest of `/settings`, `/reports/monthly` — arriving in step 7
 - `/reports/audit` — the season audit: baseline, recurring failures, fixes
   that did not hold, winter-works list, records assessment; print it for the
   PDF, export Markdown / CSV / JSON ([docs/audit.md](docs/audit.md))
@@ -185,6 +189,7 @@ src/
     queries.ts        read models: listIssues, countIssues, getKpis, getIssue (all under withTenant)
     decisions.ts      applyLinkDecision(): confirm / reject, pinned in link_decisions
     actions.ts        the server action behind the buttons
+    imports.ts        import batches read model; import-actions.ts the wizard's and the jobs' actions
     format.ts         dates, durations, status → badge
   normalize/
     language.ts       franc + Greeklish detection
@@ -194,6 +199,13 @@ src/
     llm.ts            LlmClient interface, OpenAI (AI SDK) and fake implementations
     pipeline.ts       the stages, writes derived columns + events + ai_suggestions
     eval.ts           scoring against data/out/answer_key.json
+  import/
+    mapping.ts        import-mapping-v1: file → dataset → columns; mappingFromReport(), REQUIRED_FOR_LOAD
+    loader.ts         loadBatch(): the mapped folder → locations, stay keys, signals (+ mapped), occupancy
+    signals.ts        insertSignalsScrubbed(), shared with load-synthetic
+  jobs/
+    runner.ts         enqueueJob(): one jobs row + a detached worker; run.ts runJob(); worker.ts the CLI
+    queries.ts        getJob, listJobs, latestJobs under withTenant
   reality/
     read.ts           readExportFolder(): a client's folder as delivered → tables of string cells
     catalogue.ts      the data request as a target schema; headers.ts matches columns to it

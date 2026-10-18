@@ -116,6 +116,7 @@ export async function linkSignals(db: Db, opts: LinkOptions = {}): Promise<LinkR
       textEn: schema.signals.textEn,
       textOriginal: schema.signals.textOriginal,
       raw: schema.signals.raw,
+      mapped: schema.signals.mapped,
       normalized: schema.signals.normalized,
     })
     .from(schema.signals)
@@ -132,16 +133,20 @@ export async function linkSignals(db: Db, opts: LinkOptions = {}): Promise<LinkR
   const signals: LinkSignal[] = linkable.map((r) => {
     const loc = r.locationId ? rowById.get(r.locationId) : undefined;
     const raw = r.raw ?? {};
+    const mapped = (r.mapped ?? {}) as Record<string, unknown>;
     const str = (k: string) => (raw[k] === null || raw[k] === undefined ? null : String(raw[k]));
+    // The canonical record (any export) first, the synthetic export's own columns second.
+    const m = (k: string) => (mapped[k] === null || mapped[k] === undefined || mapped[k] === "" ? null : String(mapped[k]));
+    const iso = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}T/.test(v) ? new Date(v) : null);
     const wo =
       r.source === "work_order"
         ? {
-            createdAt: parseDmyHm(str("Created") ?? "", tz) ?? r.occurredAt,
-            closedAt: parseDmyHm(str("Closed") ?? "", tz),
-            status: str("Status") ?? "",
-            reopened: str("Reopened"),
-            closureNote: str("Closure Note"),
-            technician: str("Technician"),
+            createdAt: iso(m("created_at")) ?? parseDmyHm(str("Created") ?? "", tz) ?? r.occurredAt,
+            closedAt: iso(m("closed_at")) ?? parseDmyHm(str("Closed") ?? "", tz),
+            status: m("status") ?? str("Status") ?? "",
+            reopened: m("reopened") ?? str("Reopened"),
+            closureNote: m("closure_note") ?? str("Closure Note"),
+            technician: m("assigned_to") ?? str("Technician"),
           }
         : null;
     return {

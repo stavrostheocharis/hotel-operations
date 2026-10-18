@@ -181,6 +181,11 @@ the person's name next to a confirmed link. Only roles with `links.decide`
   `src/console/review.ts` (pairs, decide, undo) and `review-actions.ts`;
   `src/components/signals/` (filter bar, drawer, record panel, tools) and
   `src/components/review/review-deck.tsx`.
+- `src/console/imports.ts` (batches, last import) and `import-actions.ts`
+  (create from a folder, check, load, discard, run a job, mark stalled);
+  `src/components/imports/` (upload form, wizard buttons, steps, report
+  summary) and `src/components/jobs/job-progress.tsx`; see `docs/imports.md`
+  and `docs/jobs.md`.
 - `src/console/actions.ts` – the `'use server'` action the buttons post to;
   it calls `applyLinkDecision` then `refresh()`.
 - `src/console/format.ts` – date, duration and label formatters, the

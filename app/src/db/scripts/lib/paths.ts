@@ -20,3 +20,10 @@ export function resortConfigPath(): string {
 export function migrationsFolder(): string {
   return path.join(repoRoot, "app", "drizzle");
 }
+
+/** Where uploaded client exports land, one folder per import batch. */
+export function uploadsDir(): string {
+  const configured = process.env.UPLOADS_DIR;
+  if (configured) return path.resolve(process.cwd(), configured);
+  return path.join(repoRoot, "data", "uploads");
+}

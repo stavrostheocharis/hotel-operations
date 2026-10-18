@@ -12,6 +12,10 @@ pnpm db:reality-check --dir=/path/to/client/export --out=/path/to/memo
 pnpm test:unit                                      # the tests, no database needed
 ```
 
+The same check runs from the console: `/imports` → New import → "Start the
+check" on a batch stores the report, the verdict and the column mapping the
+loader uses (`docs/imports.md`).
+
 Output: `reality-check.md` (the memo) and `reality-check.json` (the same
 report as data) in `--out`, default `data/reports/reality-check` (git-ignored,
 and outside the export folder so that stays exactly what the client

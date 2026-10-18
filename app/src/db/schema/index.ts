@@ -12,4 +12,5 @@ export * from "./occupancy";
 export * from "./decisions";
 export * from "./auth";
 export * from "./verification";
+export * from "./jobs";
 export * from "./pii";

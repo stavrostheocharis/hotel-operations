@@ -17,6 +17,7 @@ coverage/
 
 # Generated reports (audit, reality check); data/out is covered by out/ above
 data/reports/
+data/uploads/
 
 # Environment
 .env
@@ -45,3 +46,6 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# local dev launcher for the Claude browser pane
+.claude/launch.json
