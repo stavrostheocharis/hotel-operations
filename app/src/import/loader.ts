@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { schema, type Db } from "@/db";
 import { buildingAliases, equipmentAliases, facilityAliases, floorAliases, floorCode, LocationResolver, parseServes, roomAliases, type BuildingDef } from "@/db/scripts/lib/locations";
-import { stayRef } from "@/db/scripts/lib/stay-ref";
+import { staffRef, stayRef } from "@/db/scripts/lib/stay-ref";
 import { zonedToUtc } from "@/db/scripts/lib/time";
 import { findProperty } from "@/db/scripts/seed";
 import { classifyDate, withTime } from "@/reality/dates";
@@ -173,11 +173,12 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
           rows.push({
             ...tenant,
             source: "pms",
-            externalId: rec.stay_key,
+            // The reservation number lives in pii.stay_keys only; here the stay is its pseudonym.
+            externalId: stayRef(property.code, rec.stay_key),
             occurredAt: arrival,
             stayRef: stayRef(property.code, rec.stay_key),
             raw,
-            mapped: { stay_key: rec.stay_key, room: rec.room ?? null, arrival: arrival.toISOString(), departure: date(rec.departure)?.toISOString() ?? null, adults: rec.adults ?? null, children: rec.children ?? null, nationality: rec.nationality ?? null, segment: rec.segment ?? null, board: rec.board ?? null },
+            mapped: { room: rec.room ?? null, arrival: arrival.toISOString(), departure: date(rec.departure)?.toISOString() ?? null, adults: rec.adults ?? null, children: rec.children ?? null, segment: rec.segment ?? null, board: rec.board ?? null },
             ingestBatchId: o.batchId,
             ...locate(resolver, rec.room),
           });
@@ -200,7 +201,7 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
             category: rec.category || null,
             stayRef: rec.stay_key ? stayRef(property.code, rec.stay_key) : null,
             raw,
-            mapped: { id, created_at: created.toISOString(), closed_at: date(rec.closed_at)?.toISOString() ?? null, status: rec.status ?? null, location: rec.location ?? null, category: rec.category ?? null, description: rec.description ?? null, closure_note: rec.closure_note ?? null, assigned_to: rec.assigned_to ?? null, priority: rec.priority ?? null, reopened: rec.reopened ?? null, created_by: rec.created_by ?? null, reported_via: rec.reported_via ?? null, asset_id: rec.asset_id ?? null },
+            mapped: { id, created_at: created.toISOString(), closed_at: date(rec.closed_at)?.toISOString() ?? null, status: rec.status ?? null, location: rec.location ?? null, category: rec.category ?? null, description: rec.description ?? null, closure_note: rec.closure_note ?? null, assigned_to: rec.assigned_to ? staffRef(property.code, rec.assigned_to) : null, priority: rec.priority ?? null, reopened: rec.reopened ?? null, created_by: rec.created_by ?? null, reported_via: rec.reported_via ?? null, asset_id: rec.asset_id ?? null },
             ingestBatchId: o.batchId,
             ...locate(resolver, rec.location),
           });
@@ -266,7 +267,7 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
             textOriginal: rec.comment || null,
             stayRef: rec.stay_key ? stayRef(property.code, rec.stay_key) : null,
             raw,
-            mapped: { id, submitted_at: at.toISOString(), stay_key: rec.stay_key ?? null, room: rec.room ?? null, overall: rec.overall ?? null, nps: rec.nps ?? null, would_recommend: rec.would_recommend ?? null, comment: rec.comment ?? null, language: rec.language ?? null, building: rec.building ?? null, room_type: rec.room_type ?? null },
+            mapped: { id, submitted_at: at.toISOString(), room: rec.room ?? null, overall: rec.overall ?? null, nps: rec.nps ?? null, would_recommend: rec.would_recommend ?? null, comment: rec.comment ?? null, language: rec.language ?? null, building: rec.building ?? null, room_type: rec.room_type ?? null },
             ingestBatchId: o.batchId,
             ...locate(resolver, rec.room),
           });

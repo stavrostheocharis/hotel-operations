@@ -34,6 +34,12 @@ of section A is a few days.
    technician names sit in `mapped.assigned_to` and `actions.actor`. Fix:
    `stayRef` as the PMS external id, drop identity columns per the report
    before storing `raw`, pseudonymise staff names.
+   **Fixed on `pilot-blockers`:** both loaders use the stay pseudonym as
+   the PMS external id, keep reservation number and nationality out of
+   `mapped`, drop the flagged identity columns and the `stay_key` /
+   `assigned_to` columns from `raw`, and store technicians as `staff_…`
+   pseudonyms (`staffRef`). Roles such as "created by" stay as the role
+   code the data request asks for.
 3. **The job worker cannot run in a deployed build.** `src/jobs/runner.ts:39-49`
    spawns `node node_modules/tsx/dist/cli.mjs src/jobs/worker.ts` detached
    from the web process: it needs `src/`, `tsx`, and `dotenv` (a

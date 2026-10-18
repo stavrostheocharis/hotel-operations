@@ -96,6 +96,24 @@ describe("the real-export loader", () => {
     expect(Object.keys(wo.raw).some((k) => /guest|name|email|phone/i.test(k))).toBe(false);
     const events = await admin.execute<{ type: string }>(sql`select type from events where property_id = ${b.id} and type = 'ingest.completed'`);
     expect(events.length).toBe(1);
+    // identity stays in pii.stay_keys: the stay's pseudonym is its external id, nothing in raw or mapped names it
+    const [stay] = await admin.execute<{ external_id: string; stay_ref: string; mapped: Record<string, unknown>; raw: Record<string, unknown> }>(sql`select external_id, stay_ref, mapped, raw from signals where property_id = ${b.id} and source = 'pms' limit 1`);
+    expect(stay.external_id).toBe(stay.stay_ref);
+    expect(stay.external_id).toMatch(/^stay_[0-9a-f]{24}$/);
+    expect(stay.mapped).not.toHaveProperty("stay_key");
+    expect(stay.mapped).not.toHaveProperty("nationality");
+    expect(stay.raw).not.toHaveProperty("reservation_no");
+    const [survey] = await admin.execute<{ mapped: Record<string, unknown>; raw: Record<string, unknown> }>(sql`select mapped, raw from signals where property_id = ${b.id} and source = 'survey' limit 1`);
+    expect(survey.mapped).not.toHaveProperty("stay_key");
+    expect(survey.raw).not.toHaveProperty("reservation_no");
+    const [tech] = await admin.execute<{ mapped: Record<string, unknown>; raw: Record<string, unknown> }>(sql`select mapped, raw from signals where property_id = ${b.id} and source = 'work_order' and mapped->>'assigned_to' is not null limit 1`);
+    expect(String(tech.mapped.assigned_to)).toMatch(/^staff_[0-9a-f]{12}$/);
+    expect(tech.raw).not.toHaveProperty("Technician");
+    // and the synthetic loader (property A) does the same, so the two stay comparable
+    const [stayA] = await admin.execute<{ external_id: string; stay_ref: string; raw: Record<string, unknown> }>(sql`select external_id, stay_ref, raw from signals where property_id = ${a.id} and source = 'pms' limit 1`);
+    expect(stayA.external_id).toBe(stayA.stay_ref);
+    expect(stayA.raw).not.toHaveProperty("reservation_no");
+    expect(mapping.files.find((f) => f.dataset === "work_orders")?.drop ?? []).toEqual([]);
   });
 
   it("inserts nothing when the same export is loaded again", async () => {

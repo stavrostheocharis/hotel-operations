@@ -270,7 +270,13 @@ HMAC of the PMS reservation number under `STAY_REF_SECRET`. The mapping back
 lives in `pii.stay_keys`, in its own schema, with no foreign key from `public`,
 no privileges for `app_user`, and a test that proves the app role cannot
 select from it. Nothing else is stored about guests: no names, contacts,
-documents or payment data. Employee performance is not modelled anywhere.
+documents or payment data. Both loaders use the stay's pseudonym as the
+PMS signal's `external_id`, keep the reservation number and nationality out
+of `mapped`, and drop from `raw` the columns behind `stay_key` and
+`assigned_to` plus every column the reality check flagged as identity
+(`FileMapping.drop`). A technician named in a ticket is stored as
+`staff_…`, a keyed pseudonym (`staffRef`), so "the same person" stays the
+same string without the name. Employee performance is not modelled anywhere.
 
 ## What the synthetic loader does (and does not)
 

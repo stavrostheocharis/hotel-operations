@@ -48,7 +48,11 @@ this order:
   (`src/db/scripts/lib/locations.ts`); villas sit under their building,
   hotel rooms under a floor; `serves` text becomes `location_links`.
 - **stays** → `pii.stay_keys` (the key, never a name) and one `pms` signal
-  per stay.
+  per stay whose `external_id` is the stay's pseudonym (`stayRef`); the
+  reservation number and the nationality never reach `raw` or `mapped`.
+  Columns the reality check flagged as a person's identity are dropped
+  from `raw` for every dataset (`FileMapping.drop`), and a technician's
+  name becomes a keyed pseudonym (`staffRef`).
 - **work orders, complaints, compensation, surveys, reviews** → `signals`,
   through `insertSignalsScrubbed()` (`src/import/signals.ts`, shared with
   the synthetic loader): PII scrub of the raw record, then an upsert on
