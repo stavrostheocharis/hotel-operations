@@ -198,6 +198,12 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
           </CardHeader>
           <CardContent className="p-0">
             <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("imports.files.name")}</TableHead>
+                  <TableHead className="text-right">{t("imports.files.size")}</TableHead>
+                </TableRow>
+              </TableHeader>
               <TableBody>
                 {batch.files.map((f) => (
                   <TableRow key={f.name}>

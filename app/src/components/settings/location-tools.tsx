@@ -39,7 +39,7 @@ export function AliasEditor({ locationId, aliases }: { locationId: string; alias
           <input type="hidden" name="locationId" value={locationId} />
           <input type="hidden" name="alias" value={a} />
           <span>{a}</span>
-          <button type="submit" aria-label={`${t("settings.locations.removeAlias")} ${a}`} disabled={removing} className="flex size-5 items-center justify-center rounded-full hover:bg-surface-hover focus-visible:shadow-focus focus-visible:outline-none">
+          <button type="submit" aria-label={`${t("settings.locations.removeAlias")} ${a}`} disabled={removing} className="-m-2 flex size-9 items-center justify-center rounded-full hover:bg-surface-hover focus-visible:shadow-focus focus-visible:outline-none">
             <XIcon className="size-3" />
           </button>
         </form>

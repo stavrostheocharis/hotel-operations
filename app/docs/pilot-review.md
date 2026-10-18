@@ -294,6 +294,10 @@ Phones
   controls under 40 px in the tree and alias chips, the categories select
   uses an undefined `rounded-input` utility. The list skeleton draws a
   second page title under the real one on every navigation.
+  **Fixed on `pilot-month`:** labels bound to their selects, header rows on
+  the three tables, named pager arrows, 40 px hit areas for the tree's
+  expand buttons and the alias chips' remove buttons, a real radius on the
+  categories select, and list skeletons without the duplicate title.
 - Dead dictionary keys and a missing Rename UI for places; review decisions
   badged with issue-status words ("Verified" for "same problem"); "decided
   this week" capped at 10; 300 pending review pairs on day one (triage with

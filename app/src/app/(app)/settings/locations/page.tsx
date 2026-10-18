@@ -29,7 +29,7 @@ export default function SettingsLocationsPage(props: PageProps<"/settings/locati
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("settings.title")} description={t("settings.locations.question")} />
-      <Suspense fallback={<PageSkeleton variant="table" />}>
+      <Suspense fallback={<PageSkeleton variant="table" header={false} />}>
         <Body searchParams={props.searchParams} />
       </Suspense>
     </div>

@@ -15,7 +15,7 @@ export function Pager({ page, pageSize, total, href }: { page: number; pageSize:
       {last > 1 ? (
         <div className="flex gap-2">
           {page > 1 ? (
-            <Button variant="ghost" render={<Link href={href(page - 1)} />}>
+            <Button variant="ghost" aria-label={t("common.previous")} render={<Link href={href(page - 1)} />}>
               ←
             </Button>
           ) : null}
@@ -23,7 +23,7 @@ export function Pager({ page, pageSize, total, href }: { page: number; pageSize:
             {page} / {last}
           </span>
           {page < last ? (
-            <Button variant="ghost" render={<Link href={href(page + 1)} />}>
+            <Button variant="ghost" aria-label={t("common.next")} render={<Link href={href(page + 1)} />}>
               →
             </Button>
           ) : null}

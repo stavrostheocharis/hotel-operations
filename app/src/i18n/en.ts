@@ -125,6 +125,8 @@ export const en = {
     showing: "Showing {from}–{to} of {total}",
     arrivesIn: "Arrives in step {step} of the build.",
     notAllowed: "Your role cannot do this.",
+    previous: "Previous page",
+    next: "Next page",
     failed: "Something went wrong. It has been logged; try again, and tell whoever runs the system if it persists.",
   },
   status: {
@@ -687,7 +689,8 @@ export const en = {
       none: "Pick at least one file.",
     },
     steps: { upload: "Upload", check: "Reality check", load: "Load", link: "Normalise & link" },
-    check: { dataset: "Dataset", rows: "Rows", period: "Period", missing: "Missing", scorecard: "How the export scores", unread: "Not read" },
+    check: { dataset: "Dataset", rows: "Rows", period: "Period", missing: "Missing", scorecard: "How the export scores", unread: "Not read", dimension: "Area", measures: "What was measured", colour: "Result" },
+    files: { name: "File", size: "Size" },
     mappingEditor: {
       title: "Which column feeds which field",
       lead: "Fix a column here and the next imports of this property start from your choice. Fields marked required stop the load when empty.",
@@ -748,6 +751,7 @@ export const en = {
     kind: { normalize: "normalise", link: "match", embed: "similarity index", import: "import", audit: "audit", check: "export check" },
     status: { queued: "Queued", running: "Running", succeeded: "Done", failed: "Failed", cancelled: "Cancelled" },
     step: { load: "Loading the files", normalize: "Normalising", link: "Matching", embed: "Building the similarity index", check: "Checking the export", done: "Finished" },
+    columns: { kind: "Job", status: "Status", when: "When", by: "By", error: "Error" },
     stalled: "The background job stopped reporting.",
     noWorker: "Nothing has picked this job up yet. The background service may be down; tell whoever runs the system.",
     markFailed: "Mark as failed",

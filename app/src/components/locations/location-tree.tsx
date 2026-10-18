@@ -90,11 +90,11 @@ function Node({ node, depth, selectedCode, isOpen, toggle }: { node: TreeItem; d
         style={{ paddingLeft: depth * 14 }}
       >
         {node.children.length ? (
-          <button type="button" aria-label={open ? t("user.collapse") : t("user.expand")} aria-expanded={open} onClick={() => toggle(node.code)} className="flex size-7 items-center justify-center rounded-sm text-muted-foreground focus-visible:shadow-focus focus-visible:outline-none">
+          <button type="button" aria-label={open ? t("user.collapse") : t("user.expand")} aria-expanded={open} onClick={() => toggle(node.code)} className="-my-1 flex size-10 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-surface-hover focus-visible:shadow-focus focus-visible:outline-none">
             <ChevronRightIcon className={cn("size-4 transition-transform", open && "rotate-90")} />
           </button>
         ) : (
-          <span className="size-7" />
+          <span className="size-10 shrink-0" />
         )}
         <Link href={`/locations/${encodeURIComponent(node.code)}`} aria-current={selected ? "page" : undefined} className="flex min-w-0 flex-1 items-center gap-2 py-1.5 focus-visible:shadow-focus focus-visible:outline-none">
           <span className="truncate">{node.kind === "room" ? node.name : `${node.name}`}</span>

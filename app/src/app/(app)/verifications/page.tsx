@@ -30,7 +30,7 @@ export default function VerificationsPage(props: PageProps<"/verifications">) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("verifications.title")} description={t("verifications.question")} />
-      <Suspense fallback={<PageSkeleton variant="table" />}>
+      <Suspense fallback={<PageSkeleton variant="table" header={false} />}>
         <List searchParams={props.searchParams} />
       </Suspense>
     </div>

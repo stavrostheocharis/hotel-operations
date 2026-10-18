@@ -108,6 +108,15 @@ async function Content() {
             <p className="px-6 pb-6 text-body text-muted-foreground">{t("jobs.none")}</p>
           ) : (
             <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("jobs.columns.kind")}</TableHead>
+                  <TableHead>{t("jobs.columns.status")}</TableHead>
+                  <TableHead>{t("jobs.columns.when")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("jobs.columns.by")}</TableHead>
+                  <TableHead>{t("jobs.columns.error")}</TableHead>
+                </TableRow>
+              </TableHeader>
               <TableBody>
                 {(Object.values(jobs) as JobView[])
                   .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())

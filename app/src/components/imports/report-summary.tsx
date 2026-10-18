@@ -90,6 +90,13 @@ export function ReportSummary({ report, mapping }: { report: RealityReport; mapp
             </CardHeader>
             <CardContent className="p-0">
               <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">{t("imports.check.dimension")}</TableHead>
+                    <TableHead>{t("imports.check.measures")}</TableHead>
+                    <TableHead className="text-right">{t("imports.check.colour")}</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {report.scorecard.map((d) => (
                     <TableRow key={d.dimension}>
