@@ -303,6 +303,13 @@ Phones
   this week" capped at 10; 300 pending review pairs on day one (triage with
   the model judge before handing the queue to a supervisor); future-dated
   demo records show "in 3 d".
+  **Fixed on `pilot-month`:** `pnpm check:i18n` now also fails on a
+  dictionary key nothing reads, and the dead keys are gone; "Rename…" on
+  Settings → Locations; review decisions read "same" / "not the same" in
+  their own colours; "decided this week" is a real count; a created issue
+  is reached from its toast; the check flags records dated after today;
+  `docs/deploy.md` says to run the matching with the model before handing
+  Review to a supervisor.
 
 ## What held up
 

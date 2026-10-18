@@ -2,7 +2,6 @@
 
 import { and, eq, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
-import { redirect } from "next/navigation";
 import { assertCan, type Department } from "@/auth/permissions";
 import { requireViewer } from "@/auth/viewer";
 import { getAppDb, schema, withTenant } from "@/db";
@@ -171,8 +170,7 @@ export async function createIssueFromSignalAction(_prev: ActionResult | null, fd
     });
     return t("signals.toast.created");
   });
-  if (result.ok && issueId) redirect(`/issues/${issueId}`);
-  return result;
+  return result.ok && issueId ? { ...result, href: `/issues/${issueId}` } : result;
 }
 
 /** For the "link to…" search box. */

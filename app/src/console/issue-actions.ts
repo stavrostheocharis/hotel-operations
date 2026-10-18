@@ -14,7 +14,7 @@ import { failureMessage } from "./action-errors";
  * returns a sentence for the toast; failures come back as `ok: false` with
  * the reason, never as a thrown error the form cannot show.
  */
-export type ActionResult = { ok: boolean; message: string; at: number };
+export type ActionResult = { ok: boolean; message: string; at: number; /** Where to go once the toast is up (a created record). */ href?: string };
 
 const str = (fd: FormData, k: string) => {
   const v = fd.get(k);

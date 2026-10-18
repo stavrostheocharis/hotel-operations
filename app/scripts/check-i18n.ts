@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { en } from "../src/i18n/en";
 
 /**
  * Every string a person reads comes from src/i18n/en.ts. This walks the
@@ -55,9 +56,53 @@ function check(file: string) {
 const files: string[] = [];
 for (const r of ROOTS) walk(r, files);
 for (const f of files) check(f);
-if (hits.length) {
+
+// --- the other direction: every dictionary leaf must be read somewhere ------------------
+// `t("a.b")`, `tList("a.b")`, `label("group", x)` (the whole group), and
+// template keys t(`a.b.${x}`) (the whole prefix) count as uses.
+function leaves(node: unknown, prefix: string, out: string[]) {
+  if (typeof node === "string" || Array.isArray(node)) out.push(prefix);
+  else if (node && typeof node === "object") for (const [k, v] of Object.entries(node)) leaves(v, prefix ? `${prefix}.${k}` : k, out);
+}
+function walkAll(dir: string, out: string[]) {
+  for (const name of readdirSync(dir)) {
+    const p = path.join(dir, name);
+    if (statSync(p).isDirectory()) {
+      if (name !== "node_modules" && name !== "__tests__") walkAll(p, out);
+    } else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(p);
+  }
+}
+const sources: string[] = [];
+walkAll("src", sources);
+const used = new Set<string>();
+// The phase placeholders read their whole section by name (`${section}.${leaf}`).
+const prefixes = new Set<string>(["copilot", "guestQr"]);
+for (const f of sources) {
+  const text = readFileSync(f, "utf8");
+  for (const m of text.matchAll(/\b(?:t|tList)\(\s*"([^"]+)"/g)) used.add(m[1]);
+  for (const m of text.matchAll(/\b(?:label|dictLabel)\(\s*"([^"]+)"/g)) prefixes.add(m[1]);
+  for (const m of text.matchAll(/\b(?:t|tList|label)\(\s*`([^`$]+)\$\{/g)) prefixes.add(m[1].replace(/\.$/, ""));
+  for (const m of text.matchAll(/`\$\{[^}]+\}\.([a-zA-Z]+)` as TKey/g)) prefixes.add(`*.${m[1]}`);
+}
+const all: string[] = [];
+leaves(en, "", all);
+const unused = all.filter((k) => {
+  if (used.has(k)) return false;
+  for (const p of prefixes) {
+    if (p.startsWith("*.")) {
+      if (k.endsWith(p.slice(1))) return false;
+    } else if (k === p || k.startsWith(`${p}.`)) return false;
+  }
+  return true;
+});
+if (unused.length) {
+  for (const k of unused) console.log(`unused key: ${k}`);
+  console.log(`\n${unused.length} dictionary key(s) nothing reads`);
+}
+
+if (hits.length || unused.length) {
   for (const h of hits) console.log(`${h.file}:${h.line}  ${JSON.stringify(h.text)}`);
   console.log(`\n${hits.length} string(s) outside the dictionary in ${new Set(hits.map((h) => h.file)).size} file(s)`);
   process.exit(1);
 }
-console.log(`i18n: ${files.length} files, every string comes from the dictionary`);
+console.log(`i18n: ${files.length} files, every string comes from the dictionary and every key is read`);

@@ -66,6 +66,10 @@ ALTER ROLE pii_admin PASSWORD '…';
   LOCKED`); one Postgres with `DB_POOL_MAX` connections per web replica
   (default 10) and 3 per worker; keep the sum under `max_connections` or
   put pgbouncer in front.
+- **The review queue on day one**: a first linking with rules only leaves
+  a few hundred pairs for a person. Run one matching with the model
+  (`pnpm db:link --llm`, or the wizard's switch) before handing Review to a
+  supervisor; the judge clears most of them.
 - **Translations and the model**: normalisation runs rules only unless
   the worker has `OPENAI_API_KEY`; records in other languages then show
   "Not translated yet". Before the pilot's first review session, run one
