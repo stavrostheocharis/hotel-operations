@@ -24,6 +24,10 @@ import { getJob } from "@/jobs/queries";
 import type { JobView } from "@/jobs/types";
 import { canSee } from "@/auth/screens";
 import { NotAllowed } from "@/components/console/not-allowed";
+import { MappingEditor, type EditableFile } from "@/components/imports/mapping-editor";
+import { columnsOfFile, REQUIRED_FOR_LOAD, type ImportMapping } from "@/import/mapping";
+import { DATASET_BY_KEY } from "@/reality/catalogue";
+import type { RealityReport } from "@/reality/types";
 
 export const metadata = { title: t("imports.batch.title") };
 
@@ -41,6 +45,7 @@ export default function BatchPage(props: PageProps<"/imports/[batchId]">) {
 function stepOf(batch: BatchDetail, job: JobView | null): { current: StepKey | "done"; failed: boolean } {
   switch (batch.status) {
     case "uploaded":
+    case "checking":
       return { current: "check", failed: false };
     case "checked":
       return { current: "load", failed: false };
@@ -182,6 +187,7 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
             </Card>
           ) : null}
           <ReportSummary report={batch.report} mapping={batch.mapping} />
+          {canImport && batch.mapping && (batch.status === "checked" || batch.status === "failed") && !jobActive ? <MappingEditor batchId={batch.id} files={editableFiles(batch.report, batch.mapping)} /> : null}
         </>
       ) : null}
 
@@ -214,4 +220,20 @@ function rejectedOf(batch: BatchDetail, source: string): number {
 function rejectedReasons(batch: BatchDetail, source: string): string | undefined {
   const r = batch.counts?.rejected?.[source];
   return r && Object.keys(r).length ? Object.entries(r).map(([k, v]) => `${k}: ${v}`).join(" · ") : undefined;
+}
+
+/** The files a person may re-map: every loadable dataset, its required fields first, then what the check mapped. */
+function editableFiles(report: RealityReport, mapping: ImportMapping): EditableFile[] {
+  return mapping.files.map((m) => {
+    const required = (REQUIRED_FOR_LOAD[m.dataset] ?? []).flatMap((k) => k.split("|"));
+    const spec = DATASET_BY_KEY[m.dataset];
+    const labelOf = (field: string) => spec?.fields.find((f) => f.key === field)?.label ?? field.replace(/_/g, " ");
+    const order = [...new Set([...required, ...Object.keys(m.fields)])];
+    return {
+      path: m.path,
+      datasetLabel: report.files.find((f) => f.path === m.path)?.datasetLabel ?? m.dataset,
+      columns: columnsOfFile(report, m.path),
+      fields: order.map((field) => ({ field, label: labelOf(field), column: m.fields[field]?.[0] ?? null, required: required.includes(field) })),
+    };
+  });
 }

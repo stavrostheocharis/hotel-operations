@@ -20,9 +20,11 @@ exports or uploads folder.
 
 ## 2. Reality check
 
-`checkBatchAction` runs `runRealityCheck(dir)` (`docs/reality-check.md`)
-inline and stores the report, the verdict and the **mapping** on the batch
-(`checked`). The page shows the verdict and its reasons, the datasets with
+`checkBatchAction` marks the batch `checking` and starts a `check` job;
+the worker runs `runRealityCheck(dir)` (`docs/reality-check.md`) and
+stores the report, the verdict and the **mapping** on the batch
+(`checked`). Nothing is read in the web request, so a big export never
+hits a request limit; the page follows the job like a load. The page shows the verdict and its reasons, the datasets with
 rows and period, how many fields each file mapped and what is missing, the
 scorecard and the asks; the memo downloads from
 `/imports/[batchId]/memo`.
@@ -35,6 +37,13 @@ marked low-confidence. `REQUIRED_FOR_LOAD` names what a dataset cannot be
 loaded without (work orders: id, created_at, description; surveys:
 submitted_at or departure_date; stays: stay_key and arrival; …); a file
 missing one is listed and skipped, never half-loaded.
+
+Below the report, **"Which column feeds which field"** lets a manager
+correct a column per file (`updateMappingAction`). The correction is
+written to the batch and remembered for the property
+(`properties.settings.mappingOverrides`, per dataset and field); every
+later check applies it when the file still has that column
+(`applyMappingOverrides`), so a vendor's odd header is fixed once.
 
 ## 3. Load
 
@@ -78,7 +87,8 @@ this order:
   the batch. Before any of this, the mapping is validated against the
   files as they are now (`validateMapping`): a renamed column or a swapped
   file fails the load with the column named, instead of loading nothing.
-- **occupancy** → `occupancy_daily`.
+- **occupancy** → `occupancy_daily`, upserted: a corrected figure in a
+  later export replaces the old one.
 
 Dates follow the column's own convention: the check decides day-first
 or month-first per column (`monthFirstFields`), two-digit years are this

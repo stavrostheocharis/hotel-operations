@@ -16,6 +16,8 @@ export type PropertySettings = {
   defaultDepartments?: Partial<Record<Category, Department>>;
   /** "06:10", property-local. */
   importTime?: string;
+  /** Column corrections a person made on an earlier import, applied to every new check: dataset → field → column. */
+  mappingOverrides?: Partial<Record<string, Record<string, string>>>;
 };
 
 /** The linker's built-in windows; everything else is 30 days. */
@@ -71,6 +73,15 @@ export function parseSettings(raw: unknown): PropertySettings {
     }
   }
   if (typeof r.importTime === "string" && /^\d{2}:\d{2}$/.test(r.importTime)) out.importTime = r.importTime;
+  if (r.mappingOverrides && typeof r.mappingOverrides === "object") {
+    out.mappingOverrides = {};
+    for (const [ds, fields] of Object.entries(r.mappingOverrides as Record<string, unknown>)) {
+      if (!fields || typeof fields !== "object") continue;
+      const clean: Record<string, string> = {};
+      for (const [f, c] of Object.entries(fields as Record<string, unknown>)) if (typeof c === "string") clean[f] = c;
+      if (Object.keys(clean).length) out.mappingOverrides[ds] = clean;
+    }
+  }
   return out;
 }
 

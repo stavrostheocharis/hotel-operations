@@ -141,9 +141,8 @@ Data and rebuilds
 - The reality check and the upload run inside the web process over whole
   files in memory; PaaS request limits will cut them.
   **Partly fixed on `pilot-before`:** the upload refuses an oversized body
-  from its `content-length` before reading it. The check itself still runs
-  inline (a hotel's season is thousands of rows, not hundreds of
-  thousands); moving it to the worker stays in section C.
+  from its `content-length` before reading it. **Fixed on `pilot-month`:**
+  the check runs in the worker as a `check` job.
 - Translations: the demo DB was normalised rules-only, so 1,780 of 3,330
   text records show in German, Greek, French or Italian with no marker
   (`coalesce(text_en, text_original)`). Run normalisation with the model
@@ -269,6 +268,12 @@ Phones
   the mapping; a mis-mapped column is a code change). Occupancy never
   updates. Alerts on failed jobs and on an export that is late against the
   property's import time (today the time is only displayed).
+  **Fixed on `pilot-month` (editor, memory, occupancy):** "Which column
+  feeds which field" on the batch page, remembered per property and
+  applied at every later check; occupancy is upserted; the reality check
+  now runs in the worker (`check` job, batch status `checking`), closing
+  the item left open from section B; the check also warns about rows
+  dated after today.
 - Sessions slide forever (add an absolute lifetime); the sign-in limiter is
   per process and per email; `auth_set_password` and `auth_create_session`
   take any user id (add a group check inside the functions); per-property

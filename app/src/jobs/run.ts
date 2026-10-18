@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { schema, type Db, type Tx } from "@/db";
 import { findPropertyById } from "@/db/scripts/seed";
 import { loadBatch } from "@/import/loader";
@@ -7,6 +7,9 @@ import { linkSignals } from "@/link/pipeline";
 import { createFakeLlm, createOpenAiLlm, type LlmClient } from "@/normalize/llm";
 import { normalizeSignals } from "@/normalize/pipeline";
 import { STALL_MS, SWEEP_AFTER_MS, type JobKind, type JobParams, type JobProgressInfo } from "./types";
+import { applyMappingOverrides, mappingFromReport } from "@/import/mapping";
+import { readSettings } from "@/console/property-settings";
+import { runRealityCheck } from "@/reality";
 
 /**
  * Runs one job to its end, in whatever process calls it: the worker
@@ -130,8 +133,11 @@ export async function runClaimed(db: Db, job: JobRow, opts: RunOptions = {}): Pr
       .returning({ id: schema.jobs.id });
     if (done.length) {
       await db.insert(schema.events).values({ ...tenant, entityType: "job", entityId: job.id, type: "job.finished", actor: job.requestedBy ?? "system", payload: { kind: job.kind, status: "failed", error } });
-      if (job.kind === "import" && params.batchId) {
-        await db.update(schema.importBatches).set({ status: "failed", error }).where(and(eq(schema.importBatches.id, params.batchId), eq(schema.importBatches.status, "loading")));
+      if ((job.kind === "import" || job.kind === "check") && params.batchId) {
+        await db
+          .update(schema.importBatches)
+          .set({ status: "failed", error })
+          .where(and(eq(schema.importBatches.id, params.batchId), inArray(schema.importBatches.status, ["loading", "checking"])));
       }
     }
     return { status: "failed", error };
@@ -176,6 +182,26 @@ async function dispatch(db: Db, kind: JobKind, params: JobParams, c: Ctx): Promi
       c.onProgress({ step: "done", done: 3, total: 3 });
       return { loaded: loaded as unknown as Record<string, unknown>, normalized: n.processed, issues: l.issues, forReview: l.forReview, reconcile: l.reconcile };
     }
+    case "check": {
+      if (!params.batchId) throw new Error("check needs a batch");
+      const [batch] = await db.select().from(schema.importBatches).where(eq(schema.importBatches.id, params.batchId));
+      if (!batch) throw new Error("batch not found");
+      c.onProgress({ step: "check", done: 0, total: 1, message: "reading the files" });
+      const { report } = await runRealityCheck(batch.dir);
+      const settings = await readSettings(db, c.propertyId);
+      const mapping = applyMappingOverrides(mappingFromReport(report), report, settings.mappingOverrides);
+      const updated = await db
+        .update(schema.importBatches)
+        .set({ status: "checked", verdict: report.decision.verdict, realityReport: report as unknown as Record<string, unknown>, mapping: mapping as unknown as Record<string, unknown>, error: null })
+        .where(and(eq(schema.importBatches.id, batch.id), eq(schema.importBatches.status, "checking")))
+        .returning({ id: schema.importBatches.id });
+      if (updated.length) {
+        await db.insert(schema.events).values({ groupId: batch.groupId, propertyId: batch.propertyId, entityType: "import", entityId: batch.id, type: "import.checked", actor: "system", payload: { verdict: report.decision.verdict, datasets: mapping.files.length } });
+      }
+      c.onProgress({ step: "check", done: 1, total: 1 });
+      c.log(`check: ${report.decision.verdict}, ${mapping.files.length} files mapped`);
+      return { verdict: report.decision.verdict, files: mapping.files.length };
+    }
     case "audit":
       throw new Error("the audit is computed on view; use pnpm db:audit for files");
   }
@@ -200,7 +226,7 @@ export async function markStalled(db: Db | Tx, jobId: string, olderThanMs = STAL
   await db
     .update(schema.importBatches)
     .set({ status: "failed", error: "the worker stopped reporting" })
-    .where(and(eq(schema.importBatches.jobId, jobId), eq(schema.importBatches.status, "loading")));
+    .where(and(eq(schema.importBatches.jobId, jobId), inArray(schema.importBatches.status, ["loading", "checking"])));
   return true;
 }
 
@@ -218,7 +244,7 @@ export async function sweepStalled(db: Db, olderThanMs = SWEEP_AFTER_MS): Promis
   for (const j of stale) if (await markStalled(db, j.id, olderThanMs)) jobs++;
   const batches = await db.execute<{ id: string }>(sql`
     update import_batches b set status = 'failed', error = coalesce(j.error, 'the job ended without finishing the load')
-    from jobs j where b.job_id = j.id and b.status = 'loading' and j.status in ('failed', 'cancelled', 'succeeded')
+    from jobs j where b.job_id = j.id and b.status in ('loading', 'checking') and j.status in ('failed', 'cancelled', 'succeeded')
     returning b.id
   `);
   return { jobs, batches: batches.length };

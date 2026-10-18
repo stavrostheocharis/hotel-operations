@@ -9,11 +9,12 @@ import { assertCan } from "@/auth/permissions";
 import { requireViewer } from "@/auth/viewer";
 import { getAppDb, schema, withTenant } from "@/db";
 import { demoFolder, uploadsDir } from "@/db/scripts/lib/paths";
-import { mappingFromReport } from "@/import/mapping";
+import { columnsOfFile, type ImportMapping, type MappingOverrides } from "@/import/mapping";
 import { t } from "@/i18n";
 import { enqueueJob } from "@/jobs/runner";
 import { markStalled } from "@/jobs/run";
-import { runRealityCheck } from "@/reality";
+import type { RealityReport } from "@/reality/types";
+import { parseSettings } from "./property-settings";
 import type { ActionResult } from "./issue-actions";
 import { failureMessage } from "./action-errors";
 
@@ -81,17 +82,55 @@ export async function checkBatchAction(_prev: ActionResult | null, fd: FormData)
     const batchId = str(fd, "batchId");
     const [batch] = await withTenant(getAppDb(), viewer.scoped, (tx) => tx.select().from(schema.importBatches).where(eq(schema.importBatches.id, batchId)));
     if (!batch) throw new Error("batch not found");
-    const dir = await safeFolder(batch.dir);
-    const { report } = await runRealityCheck(dir);
-    const mapping = mappingFromReport(report);
-    await withTenant(getAppDb(), viewer.scoped, async (tx) => {
-      await tx
-        .update(schema.importBatches)
-        .set({ status: "checked", verdict: report.decision.verdict, realityReport: report as unknown as Record<string, unknown>, mapping: mapping as unknown as Record<string, unknown>, error: null })
-        .where(eq(schema.importBatches.id, batch.id));
-      await tx.insert(schema.events).values({ groupId: batch.groupId, propertyId: batch.propertyId, entityType: "import", entityId: batch.id, type: "import.checked", actor: viewer.user.id, payload: { verdict: report.decision.verdict, datasets: mapping.files.length } });
+    await safeFolder(batch.dir);
+    // The files are read in the worker, not in this request: a big export must not hit the request limit.
+    await withTenant(getAppDb(), viewer.scoped, (tx) => tx.update(schema.importBatches).set({ status: "checking", error: null }).where(eq(schema.importBatches.id, batch.id)));
+    const { id } = await enqueueJob(getAppDb(), viewer.scoped, { propertyId: viewer.property.id, kind: "check", params: { batchId: batch.id, propertyCode: viewer.property.code }, requestedBy: viewer.user.id }).catch(async (err) => {
+      await withTenant(getAppDb(), viewer.scoped, (tx) => tx.update(schema.importBatches).set({ status: batch.status }).where(eq(schema.importBatches.id, batch.id)));
+      throw err;
     });
-    return t("imports.toast.checked", { verdict: report.decision.verdict.toUpperCase() });
+    await withTenant(getAppDb(), viewer.scoped, (tx) => tx.update(schema.importBatches).set({ jobId: id }).where(eq(schema.importBatches.id, batch.id)));
+    return t("imports.toast.checking");
+  });
+}
+
+/** A person corrects which column feeds a field; the correction is kept for the property's next imports. */
+export async function updateMappingAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    const viewer = await requireViewer();
+    assertCan(viewer.actor(), "imports.run");
+    const batchId = str(fd, "batchId");
+    const [batch] = await withTenant(getAppDb(), viewer.scoped, (tx) => tx.select().from(schema.importBatches).where(eq(schema.importBatches.id, batchId)));
+    if (!batch || !batch.realityReport || !batch.mapping) throw new Error(t("imports.errors.notChecked"));
+    if (batch.status !== "checked" && batch.status !== "failed" && batch.status !== "loaded") throw new Error(t("imports.errors.notChecked"));
+    const report = batch.realityReport as unknown as RealityReport;
+    const mapping = structuredClone(batch.mapping as unknown as ImportMapping);
+    const overrides: MappingOverrides = {};
+    for (const [key, value] of fd.entries()) {
+      const m = /^map__(.+)__([a-z_]+)$/.exec(key);
+      if (!m || typeof value !== "string") continue;
+      const [, path, field] = m;
+      const file = mapping.files.find((f) => f.path === path);
+      if (!file) continue;
+      const column = value.trim();
+      if (column && !columnsOfFile(report, path).includes(column)) throw new Error(t("imports.errors.unknownColumn", { column }));
+      const current = file.fields[field]?.[0] ?? "";
+      if (column === current) continue;
+      if (column) file.fields[field] = [column];
+      else delete file.fields[field];
+      (overrides[file.dataset] ??= {})[field] = column;
+    }
+    if (!Object.keys(overrides).length) return t("imports.toast.mappingUnchanged");
+    await withTenant(getAppDb(), viewer.scoped, async (tx) => {
+      await tx.update(schema.importBatches).set({ mapping: mapping as unknown as Record<string, unknown> }).where(eq(schema.importBatches.id, batch.id));
+      const [p] = await tx.select({ settings: schema.properties.settings }).from(schema.properties).where(eq(schema.properties.id, viewer.property.id));
+      const settings = parseSettings(p?.settings);
+      const remembered = { ...(settings.mappingOverrides ?? {}) };
+      for (const [ds, fields] of Object.entries(overrides)) remembered[ds] = { ...(remembered[ds] ?? {}), ...fields };
+      await tx.update(schema.properties).set({ settings: { ...settings, mappingOverrides: remembered } as Record<string, unknown> }).where(eq(schema.properties.id, viewer.property.id));
+      await tx.insert(schema.events).values({ groupId: batch.groupId, propertyId: batch.propertyId, entityType: "import", entityId: batch.id, type: "import.mapping_changed", actor: viewer.user.id, payload: overrides });
+    });
+    return t("imports.toast.mappingSaved");
   });
 }
 

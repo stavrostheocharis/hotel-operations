@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { schema, type Db } from "@/db";
 import { buildingAliases, equipmentAliases, facilityAliases, floorAliases, floorCode, knownPlaces, LocationResolver, parseServes, roomAliases, type BuildingDef } from "@/db/scripts/lib/locations";
 import { hash4, slugCode } from "@/db/scripts/lib/codes";
@@ -370,11 +370,22 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
             departures: Number.isFinite(Number(rec.departures)) ? Number(rec.departures) : null,
           });
         }
+        // A corrected figure in a later export replaces the old one; an unchanged row is left alone.
+        let occupancyUpdated = 0;
         for (let i = 0; i < values.length; i += 500) {
-          const r = await db.insert(schema.occupancyDaily).values(values.slice(i, i + 500)).onConflictDoNothing().returning({ id: schema.occupancyDaily.id });
-          result.occupancy += r.length;
+          const r = await db
+            .insert(schema.occupancyDaily)
+            .values(values.slice(i, i + 500))
+            .onConflictDoUpdate({
+              target: [schema.occupancyDaily.propertyId, schema.occupancyDaily.day, schema.occupancyDaily.locationId],
+              set: { roomsAvailable: sql`excluded.rooms_available`, roomsOccupied: sql`excluded.rooms_occupied`, arrivals: sql`excluded.arrivals`, departures: sql`excluded.departures` },
+              setWhere: sql`(${schema.occupancyDaily.roomsAvailable}, ${schema.occupancyDaily.roomsOccupied}, ${schema.occupancyDaily.arrivals}, ${schema.occupancyDaily.departures}) is distinct from (excluded.rooms_available, excluded.rooms_occupied, excluded.arrivals, excluded.departures)`,
+            })
+            .returning({ id: schema.occupancyDaily.id, fresh: sql<boolean>`(xmax = 0)` });
+          result.occupancy += r.filter((x) => x.fresh).length;
+          occupancyUpdated += r.filter((x) => !x.fresh).length;
         }
-        log(`occupancy: ${values.length} rows, ${result.occupancy} inserted`);
+        log(`occupancy: ${values.length} rows, ${result.occupancy} inserted, ${occupancyUpdated} updated`);
         break;
       }
     }

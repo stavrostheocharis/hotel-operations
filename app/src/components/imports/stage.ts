@@ -1,7 +1,7 @@
 import type { BatchRow } from "@/console/imports";
 
 /** Status words and their colours (always paired with the word). */
-export const STAGE_VARIANT = { uploaded: "default", checked: "info", loading: "info", loaded: "success", failed: "critical", discarded: "secondary" } as const;
+export const STAGE_VARIANT = { uploaded: "default", checking: "info", checked: "info", loading: "info", loaded: "success", failed: "critical", discarded: "secondary" } as const;
 export const JOB_VARIANT = { queued: "default", running: "info", succeeded: "success", failed: "critical", cancelled: "secondary" } as const;
 export const VERDICT_VARIANT = { go: "success", reshape: "warning", stop: "critical" } as const;
 

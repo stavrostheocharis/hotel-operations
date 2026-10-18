@@ -38,8 +38,9 @@ from a code (codes repeat across groups); `params.propertyCode` is kept
 only for the log.
 
 Kinds: `normalize` (`normalizeSignals`), `link` (`linkSignals`), `embed`
-(`embedSignals`), `import` (load a batch, then normalise, then link),
-`audit` (reserved; the audit is computed on view). A partial unique index,
+(`embedSignals`), `check` (the reality check of a batch, report and
+mapping stored on it), `import` (load a batch, then normalise, then
+link), `audit` (reserved; the audit is computed on view). A partial unique index,
 `jobs_one_active_per_kind`, allows one queued or running job per kind and
 property; a second request gets the "already running" toast.
 
