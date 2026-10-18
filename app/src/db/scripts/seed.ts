@@ -326,6 +326,16 @@ export async function seedUsers(
   return { users: n };
 }
 
+/** The property a job or a page names by id: codes repeat across groups, ids do not. */
+export async function findPropertyById(db: Db, propertyId: string) {
+  const [row] = await db
+    .select({ id: schema.properties.id, groupId: schema.properties.groupId, code: schema.properties.code, timezone: schema.properties.timezone })
+    .from(schema.properties)
+    .where(eq(schema.properties.id, propertyId))
+    .limit(1);
+  return row ?? null;
+}
+
 /** Look up the seeded property without re-seeding. */
 export async function findProperty(db: Db, propertyCode = "ASTRAEA") {
   const [row] = await db

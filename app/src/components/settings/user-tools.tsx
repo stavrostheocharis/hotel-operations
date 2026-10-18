@@ -65,10 +65,10 @@ function RoleFields({ roles, departments, role, setRole, department, setDepartme
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="flex flex-col gap-1.5">
-        <Label>{t("settings.users.role")}</Label>
+        <Label htmlFor="user-role">{t("settings.users.role")}</Label>
         <input type="hidden" name="role" value={role} />
         <Select value={role} onValueChange={(v) => setRole(String(v))}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger id="user-role" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -81,10 +81,10 @@ function RoleFields({ roles, departments, role, setRole, department, setDepartme
         </Select>
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label>{t("settings.users.department")}</Label>
+        <Label htmlFor="user-department">{t("settings.users.department")}</Label>
         <input type="hidden" name="department" value={department} />
         <Select value={department} onValueChange={(v) => setDepartment(String(v))}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger id="user-department" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

@@ -39,7 +39,7 @@ export default function SignalsPage(props: PageProps<"/signals">) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("signals.title")} description={t("signals.question")} />
-      <Suspense fallback={<PageSkeleton variant="table" />}>
+      <Suspense fallback={<PageSkeleton variant="table" header={false} />}>
         <Inbox searchParams={props.searchParams} />
       </Suspense>
     </div>

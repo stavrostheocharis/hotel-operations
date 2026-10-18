@@ -1,6 +1,6 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDb, type Db } from "../index";
+import { schema, withTenant, createDb, type Db } from "../index";
 import { DEMO_USERS } from "../scripts/seed";
 import { hashPassword, verifyPassword } from "@/auth/password";
 import { hashToken, newSessionToken } from "@/auth/tokens";
@@ -112,5 +112,46 @@ describe("sign-in through the app role", () => {
     } finally {
       await admin.execute(sql`update users set is_active = true where id = ${sup.user_id}`);
     }
+  });
+});
+
+describe("hardening", () => {
+  it("a session ends after 90 days however often it is used", async () => {
+    const [gm] = await credentials("gm@demo.hotel");
+    const token = await openSession(gm.user_id);
+    expect((await resolve(token)).length).toBe(1);
+    await admin.execute(sql`update sessions set created_at = now() - interval '91 days' where token_hash = ${hashToken(token)}`);
+    expect((await resolve(token)).length).toBe(0);
+  });
+
+  it("counts failed sign-ins per email and address, and clears them on success", async () => {
+    const arr = (keys: string[]) => sql`array[${sql.join(keys.map((k) => sql`${k}`), sql`, `)}]::text[]`;
+    const keys = arr(["e:someone@demo.hotel|10.0.0.9", "ip:10.0.0.9"]);
+    const blocked = async () => (await app.execute<{ auth_sign_in_blocked: boolean }>(sql`select auth_sign_in_blocked(${keys})`))[0].auth_sign_in_blocked;
+    expect(await blocked()).toBe(false);
+    for (let i = 0; i < 4; i++) await app.execute(sql`select auth_sign_in_failed(${keys})`);
+    expect(await blocked()).toBe(false);
+    await app.execute(sql`select auth_sign_in_failed(${keys})`);
+    expect(await blocked()).toBe(true);
+    await app.execute(sql`select auth_sign_in_cleared(${keys})`);
+    expect(await blocked()).toBe(false);
+    // the address alone needs many more before it is blocked
+    const ipOnly = arr(["ip:10.0.0.9"]);
+    const [row] = await admin.execute<{ count: number }>(sql`select count from sign_in_attempts where key = 'ip:10.0.0.9'`);
+    expect(Number(row.count)).toBe(5);
+    expect((await app.execute<{ auth_sign_in_blocked: boolean }>(sql`select auth_sign_in_blocked(${ipOnly})`))[0].auth_sign_in_blocked).toBe(false);
+    await admin.execute(sql`delete from sign_in_attempts where key like '%10.0.0.9'`);
+  });
+
+  it("the password function refuses a user outside the caller's group, and no session opens for an inactive user", async () => {
+    const [g2] = await admin.insert(schema.groups).values({ code: "auth-other", name: "Other group" }).onConflictDoUpdate({ target: schema.groups.code, set: { name: "Other group" } }).returning({ id: schema.groups.id });
+    const [stranger] = await admin.insert(schema.users).values({ groupId: g2.id, email: "stranger@other.hotel", name: "S", role: "gm" }).returning({ id: schema.users.id });
+    const [gm] = await credentials("gm@demo.hotel");
+    const ctx = { groupId: gm.group_id, propertyIds: [] as string[] };
+    await expectDbError(withTenant(app, ctx, (tx) => tx.execute(sql`select auth_set_password(${stranger.id}, 'x')`)), /not in this group/);
+    await withTenant(app, ctx, (tx) => tx.execute(sql`select auth_set_password(${gm.user_id}, ${gm.password_hash})`)); // own group: fine
+    await admin.update(schema.users).set({ isActive: false }).where(eq(schema.users.id, stranger.id));
+    await expectDbError(openSession(stranger.id), /no active user/);
+    await admin.delete(schema.users).where(eq(schema.users.id, stranger.id));
   });
 });

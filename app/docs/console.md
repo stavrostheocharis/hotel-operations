@@ -176,6 +176,8 @@ the person's name next to a confirmed link. Only roles with `links.decide`
   `src/components/locations/` (tree, browser frame) and
   `src/components/settings/` (tabs, alias editor, serves dialog, map-to,
   add place).
+- `src/components/settings/location-tools.tsx` also renames a place
+  (`RenameDialog` → `renameLocationAction`).
 - `src/console/signals.ts` (list, views, record, likely issues, search,
   places) and `signal-actions.ts` (relocate, reclassify, link, create);
   `src/console/review.ts` (pairs, decide, undo) and `review-actions.ts`;

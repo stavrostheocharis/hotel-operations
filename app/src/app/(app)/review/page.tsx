@@ -9,9 +9,9 @@ import { PageSkeleton } from "@/components/console/page-skeleton";
 import { RecentDecisionBadge, ReviewDeck, UndoButton } from "@/components/review/review-deck";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtDateTime } from "@/console/format";
-import { listDecidedPairs, listReviewPairs } from "@/console/review";
+import { countDecidedThisWeek, listDecidedPairs, listReviewPairs } from "@/console/review";
 import { getAppDb } from "@/db";
-import { label, t } from "@/i18n";
+import { t } from "@/i18n";
 import { canSee } from "@/auth/screens";
 import { NotAllowed } from "@/components/console/not-allowed";
 
@@ -33,12 +33,12 @@ async function Queue() {
   if (!canSee(viewer.roleAt(), "review")) return <NotAllowed />;
   const db = getAppDb();
   const tz = viewer.property.timezone;
-  const [{ pairs, total }, recent] = await Promise.all([listReviewPairs(db, viewer.scoped, { limit: 1 }), listDecidedPairs(db, viewer.scoped, 10)]);
+  const [{ pairs, total }, recent, decidedThisWeek] = await Promise.all([listReviewPairs(db, viewer.scoped, { limit: 1 }), listDecidedPairs(db, viewer.scoped, 10), countDecidedThisWeek(db, viewer.scoped)]);
   const pair = pairs[0] ?? null;
   const canDecide = viewer.can("links.decide");
   return (
     <>
-      <PageHeader title={t("review.title")} description={`${t("review.description")} ${t("review.strip", { n: total, d: recent.length })}`} />
+      <PageHeader title={t("review.title")} description={`${t("review.description")} ${t("review.strip", { n: total, d: decidedThisWeek })}`} />
       {!pair ? (
         <EmptyState icon={<CircleCheckIcon />} title={t("review.empty")} body={t("review.emptyHint")} />
       ) : canDecide ? (
@@ -61,7 +61,7 @@ async function Queue() {
                   <span className="flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
                     <RecentDecisionBadge decision={d.decision} />
                     <span>
-                      {label("review.decided", d.decision)} · {d.decidedByName ?? ""} · {fmtDateTime(d.decidedAt, tz)}
+                      {d.decidedByName ?? ""} · {fmtDateTime(d.decidedAt, tz)}
                     </span>
                     {d.attachedIssueId ? (
                       <Link href={`/issues/${d.attachedIssueId}`} className="hover:underline">

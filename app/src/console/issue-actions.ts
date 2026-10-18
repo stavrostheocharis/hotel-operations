@@ -14,7 +14,7 @@ import { failureMessage } from "./action-errors";
  * returns a sentence for the toast; failures come back as `ok: false` with
  * the reason, never as a thrown error the form cannot show.
  */
-export type ActionResult = { ok: boolean; message: string; at: number };
+export type ActionResult = { ok: boolean; message: string; at: number; /** Where to go once the toast is up (a created record). */ href?: string };
 
 const str = (fd: FormData, k: string) => {
   const v = fd.get(k);
@@ -39,7 +39,7 @@ export async function assignIssueAction(_prev: ActionResult | null, fd: FormData
     const ownerUserId = chosen === "none" ? null : chosen;
     const department = opt(fd, "department");
     const owner = ownerUserId ? opt(fd, "ownerName") : null;
-    await assignIssue(getAppDb(), viewer.tenant, viewer.actor(), { issueId: str(fd, "issueId"), ownerUserId, ownerName: owner, department, note: opt(fd, "note") });
+    await assignIssue(getAppDb(), viewer.scoped, viewer.actor(), { issueId: str(fd, "issueId"), ownerUserId, ownerName: owner, department, note: opt(fd, "note") });
     return owner ? t("issue.toast.assignedTo", { name: owner }) : t("issue.toast.assigned", { department: label("user.department", department) });
   });
 }
@@ -48,12 +48,12 @@ export async function resolveIssueAction(_prev: ActionResult | null, fd: FormDat
   return run(async () => {
     const viewer = await requireViewer();
     const issueId = str(fd, "issueId");
-    await resolveIssue(getAppDb(), viewer.tenant, viewer.actor(), { issueId, note: str(fd, "note"), ticketRef: opt(fd, "ticketRef") });
+    await resolveIssue(getAppDb(), viewer.scoped, viewer.actor(), { issueId, note: str(fd, "note"), ticketRef: opt(fd, "ticketRef") });
     if (str(fd, "schedule") === "on") {
       const dueOn = opt(fd, "dueOn");
       const due = dueOn ? new Date(`${dueOn}T12:00:00`) : new Date(Date.now() + 2 * 86_400_000);
       const assignee = opt(fd, "assigneeUserId");
-      await scheduleVerification(getAppDb(), viewer.tenant, viewer.actor(), { issueId, dueAt: due, assigneeUserId: assignee === "none" ? null : assignee, instructions: opt(fd, "instructions") });
+      await scheduleVerification(getAppDb(), viewer.scoped, viewer.actor(), { issueId, dueAt: due, assigneeUserId: assignee === "none" ? null : assignee, instructions: opt(fd, "instructions") });
       return `${t("issue.toast.resolved")} · ${t("verifications.toast.scheduled", { date: due.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) })}`;
     }
     return t("issue.toast.resolved");
@@ -65,7 +65,7 @@ export async function recordOutcomeAction(_prev: ActionResult | null, fd: FormDa
     const viewer = await requireViewer();
     const result = str(fd, "result") as OutcomeResult;
     const date = opt(fd, "observedAt");
-    const { status } = await recordOutcome(getAppDb(), viewer.tenant, viewer.actor(), {
+    const { status } = await recordOutcome(getAppDb(), viewer.scoped, viewer.actor(), {
       issueId: str(fd, "issueId"),
       result,
       note: opt(fd, "note"),
@@ -79,7 +79,7 @@ export async function changeIssueStatusAction(_prev: ActionResult | null, fd: Fo
   return run(async () => {
     const viewer = await requireViewer();
     const status = str(fd, "status");
-    await changeIssueStatus(getAppDb(), viewer.tenant, viewer.actor(), { issueId: str(fd, "issueId"), status, reason: opt(fd, "reason") });
+    await changeIssueStatus(getAppDb(), viewer.scoped, viewer.actor(), { issueId: str(fd, "issueId"), status, reason: opt(fd, "reason") });
     return t("issue.toast.status", { status: label("status", status) });
   });
 }
@@ -87,7 +87,7 @@ export async function changeIssueStatusAction(_prev: ActionResult | null, fd: Fo
 export async function addIssueNoteAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return run(async () => {
     const viewer = await requireViewer();
-    await addIssueNote(getAppDb(), viewer.tenant, viewer.actor(), { issueId: str(fd, "issueId"), text: str(fd, "text") });
+    await addIssueNote(getAppDb(), viewer.scoped, viewer.actor(), { issueId: str(fd, "issueId"), text: str(fd, "text") });
     return t("issue.toast.noted");
   });
 }
@@ -95,7 +95,7 @@ export async function addIssueNoteAction(_prev: ActionResult | null, fd: FormDat
 export async function editIssueAction(_prev: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return run(async () => {
     const viewer = await requireViewer();
-    await editIssue(getAppDb(), viewer.tenant, viewer.actor(), {
+    await editIssue(getAppDb(), viewer.scoped, viewer.actor(), {
       issueId: str(fd, "issueId"),
       title: opt(fd, "title"),
       category: opt(fd, "category"),

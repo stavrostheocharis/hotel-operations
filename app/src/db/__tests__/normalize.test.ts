@@ -12,6 +12,7 @@ let db: Db;
 let propertyId: string;
 let result: NormalizeResult;
 let report: EvalReport;
+let since: Date;
 
 beforeAll(async () => {
   db = createDb(TEST_URL, { max: 2 });
@@ -21,6 +22,7 @@ beforeAll(async () => {
   // The global setup already normalised everything; start from scratch here.
   await resetNormalization(db, propertyId);
   await db.delete(schema.aiSuggestions).where(eq(schema.aiSuggestions.propertyId, propertyId));
+  since = new Date();
   result = await normalizeSignals(db, { llm: createFakeLlm() });
   report = await evaluateNormalization(db, propertyId, dataDir());
   console.log("\n" + formatReport(report) + "\n");
@@ -47,12 +49,17 @@ describe("normalisation pipeline (rules + fake LLM)", () => {
   });
 
   it("writes a signal.normalized event per signal and per run", async () => {
-    const [{ e }] = await db
-      .select({ e: sql<number>`count(*)::int` })
+    const [{ thisRun }] = await db
+      .select({ thisRun: sql<number>`count(*)::int` })
+      .from(schema.events)
+      .where(sql`${schema.events.propertyId} = ${propertyId} and ${schema.events.type} = 'signal.normalized' and ${schema.events.occurredAt} >= ${since.toISOString()}::timestamptz`);
+    expect(thisRun).toBe(result.processed);
+    // Earlier runs (the global setup, other test files) keep their events.
+    const [{ all }] = await db
+      .select({ all: sql<number>`count(*)::int` })
       .from(schema.events)
       .where(sql`${schema.events.propertyId} = ${propertyId} and ${schema.events.type} = 'signal.normalized'`);
-    // Two runs so far: the global setup and this file's beforeAll.
-    expect(e).toBe(result.processed * 2);
+    expect(all).toBeGreaterThanOrEqual(result.processed * 2);
   });
 
   it("detects the language of guest and staff text", () => {

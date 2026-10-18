@@ -1,13 +1,15 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
 /** What a screen looks like while its data streams in. */
-export function PageSkeleton({ variant = "table" }: { variant?: "table" | "detail" | "blocks" }) {
+export function PageSkeleton({ variant = "table", header = true }: { variant?: "table" | "detail" | "blocks"; header?: boolean }) {
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <Skeleton className="h-8 w-56 rounded-sm" />
-        <Skeleton className="h-4 w-96 max-w-full rounded-sm" />
-      </div>
+      {header ? (
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-8 w-56 rounded-sm" />
+          <Skeleton className="h-4 w-96 max-w-full rounded-sm" />
+        </div>
+      ) : null}
       {variant === "blocks" ? (
         <div className="grid gap-4 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (

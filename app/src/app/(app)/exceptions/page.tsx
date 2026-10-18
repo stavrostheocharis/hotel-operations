@@ -34,7 +34,7 @@ export default function ExceptionsPage(props: PageProps<"/exceptions">) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("exceptions.title")} description={t("exceptions.description")} />
-      <Suspense fallback={<PageSkeleton variant="table" />}>
+      <Suspense fallback={<PageSkeleton variant="table" header={false} />}>
         <Queue searchParams={props.searchParams} />
       </Suspense>
     </div>

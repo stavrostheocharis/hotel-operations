@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { ActionResult } from "@/console/issue-actions";
-import { addAliasAction, createLocationAction, mapSpellingAction, removeAliasAction, setServesAction } from "@/console/location-actions";
+import { addAliasAction, createLocationAction, mapSpellingAction, removeAliasAction, renameLocationAction, setServesAction } from "@/console/location-actions";
 import { label, t } from "@/i18n";
 
 export type PlaceOption = { id: string; code: string; name: string; kind: string };
@@ -39,7 +39,7 @@ export function AliasEditor({ locationId, aliases }: { locationId: string; alias
           <input type="hidden" name="locationId" value={locationId} />
           <input type="hidden" name="alias" value={a} />
           <span>{a}</span>
-          <button type="submit" aria-label={`${t("settings.locations.removeAlias")} ${a}`} disabled={removing} className="flex size-5 items-center justify-center rounded-full hover:bg-surface-hover focus-visible:shadow-focus focus-visible:outline-none">
+          <button type="submit" aria-label={`${t("settings.locations.removeAlias")} ${a}`} disabled={removing} className="-m-2 flex size-10 items-center justify-center rounded-full hover:bg-surface-hover focus-visible:shadow-focus focus-visible:outline-none">
             <XIcon className="size-3" />
           </button>
         </form>
@@ -212,6 +212,41 @@ export function AddLocationDialog({ parents }: { parents: PlaceOption[] }) {
               <DialogClose render={<Button variant="ghost" type="button" />}>{t("issue.dialog.cancel")}</DialogClose>
               <Button type="submit" disabled={pending}>
                 {t("settings.locations.addLocation")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/** Rename a place; its code and aliases stay. */
+export function RenameDialog({ locationId, name }: { locationId: string; name: string }) {
+  const [open, setOpen] = useState(false);
+  const [state, action, pending] = useActionState<ActionResult | null, FormData>(renameLocationAction, null);
+  useActionToast(state, () => setOpen(false));
+  return (
+    <>
+      <Button variant="ghost" onClick={() => setOpen(true)}>
+        {t("settings.locations.rename")}
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("settings.locations.rename")}</DialogTitle>
+            <DialogDescription>{name}</DialogDescription>
+          </DialogHeader>
+          <form action={action} className="flex flex-col gap-4">
+            <input type="hidden" name="locationId" value={locationId} />
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`rename-${locationId}`}>{t("settings.locations.name")}</Label>
+              <Input id={`rename-${locationId}`} name="name" defaultValue={name} required autoFocus />
+            </div>
+            <DialogFooter>
+              <DialogClose render={<Button variant="ghost" />}>{t("common.cancel")}</DialogClose>
+              <Button type="submit" disabled={pending}>
+                {t("settings.locations.rename")}
               </Button>
             </DialogFooter>
           </form>

@@ -38,7 +38,7 @@ export function CategoriesForm({ rows, departments }: { rows: CategoryRowInput[]
                       <Input name={`window_${r.category}`} type="number" min={1} max={365} defaultValue={r.windowDays} className="w-24 tabular-nums" aria-label={`${r.label}: ${t("settings.categories.columns.window")}`} />
                     </TableCell>
                     <TableCell>
-                      <select name={`dept_${r.category}`} defaultValue={r.department ?? "none"} aria-label={`${r.label}: ${t("settings.categories.columns.department")}`} className="h-9 w-full rounded-input border border-border bg-background px-3 text-body text-foreground focus-visible:shadow-focus focus-visible:outline-none">
+                      <select name={`dept_${r.category}`} defaultValue={r.department ?? "none"} aria-label={`${r.label}: ${t("settings.categories.columns.department")}`} className="h-10 w-full rounded-md border border-border bg-background px-3 text-body text-foreground focus-visible:shadow-focus focus-visible:outline-none">
                         <option value="none">{t("settings.categories.noDepartment")}</option>
                         {departments.map((d) => (
                           <option key={d.value} value={d.value}>

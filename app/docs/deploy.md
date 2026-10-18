@@ -54,6 +54,10 @@ ALTER ROLE pii_admin PASSWORD '…';
 - **Backups**: `pg_dump` the database nightly (it holds `pii.stay_keys`
   too: encrypt the dump) and snapshot the uploads volume; test a restore
   before the pilot.
+- **Alerts**: set `JOBS_ALERT_WEBHOOK` to a Slack-style incoming webhook
+  and the worker posts one line on every failed or swept job; Today shows
+  the same for 24 hours, and the late-export line when the property's
+  import time passes with no import.
 - **Logs**: the worker prints one line per job and per log line to stdout;
   the web app logs to stdout; ship both. A failed job also lands as
   `job.finished` with `status: failed` in `events`.
@@ -62,6 +66,10 @@ ALTER ROLE pii_admin PASSWORD '…';
   LOCKED`); one Postgres with `DB_POOL_MAX` connections per web replica
   (default 10) and 3 per worker; keep the sum under `max_connections` or
   put pgbouncer in front.
+- **The review queue on day one**: a first linking with rules only leaves
+  a few hundred pairs for a person. Run one matching with the model
+  (`pnpm db:link --llm`, or the wizard's switch) before handing Review to a
+  supervisor; the judge clears most of them.
 - **Translations and the model**: normalisation runs rules only unless
   the worker has `OPENAI_API_KEY`; records in other languages then show
   "Not translated yet". Before the pilot's first review session, run one

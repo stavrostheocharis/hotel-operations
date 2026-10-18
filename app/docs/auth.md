@@ -134,3 +134,18 @@ with no properties; the proxy never redirects away from it.
 `?next=` is honoured only for a path on this site (`safeReturnPath()` in
 `src/auth/return-path.ts`): one leading slash, then neither a slash nor a
 backslash, no scheme, no control characters.
+
+## Hardening for the pilot
+
+- A session ends 90 days after it was opened, however often it is used
+  (the 30-day sliding expiry stays inside that); migration 0011.
+- Failed sign-ins are counted in `sign_in_attempts` (locked like the other
+  auth tables): five per email and address in fifteen minutes, fifty per
+  address against one password sprayed over many accounts; shared by every
+  replica, surviving restarts, cleared by a successful sign-in.
+- `auth_set_password` refuses a user outside the caller's group when a
+  tenant context is set; `auth_create_session` refuses an inactive user.
+- Every write to an issue, a check, a record or a pair runs under the
+  selected property (`viewer.scoped`), so the role the actor carries is
+  the role at that property; a shared link from another property still
+  opens for reading.

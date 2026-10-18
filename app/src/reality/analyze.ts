@@ -1,7 +1,7 @@
 import { detectLanguage } from "@/normalize/language";
 import { scrubPii } from "@/normalize/pii";
 import { CATCH_ALL_CATEGORY, DATASET_BY_KEY, DATASET_LABELS, DATASETS, IDENTITY_EXEMPT_DATASETS, IDENTITY_HEADER, isUsableClosureNote, namesPartOrCause, statusMeaning, type DatasetSpec, type StatusMeaning } from "./catalogue";
-import { isoWeek, readDateColumn, toIsoDate, toMinutes, withTime, type ColumnDates, type DateParts } from "./dates";
+import { classifyDate, isoWeek, readDateColumn, toIsoDate, toMinutes, withTime, type ColumnDates, type DateParts } from "./dates";
 import { classifyFile, type Mapping } from "./headers";
 import { buildMaster, resolveTyped, roomExists, roomToken, type Master, type Rec } from "./locations";
 import type { DatasetKey, DatasetSummary, DateFormatInfo, FieldMatch, FileReport, LanguageShare, ParsedFile, UnreadFile } from "./types";
@@ -303,6 +303,15 @@ function projectFile(file: ParsedFile): Projected {
     : file.columns.filter((c) => IDENTITY_HEADER.test(c.toLowerCase().replace(/[_\-.]+/g, " ")));
 
   const warnings: string[] = [...file.detection.notes];
+  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  if (dateRange && dateRange.to > tomorrow) {
+    const col = dateRange.column;
+    const future = file.rows.filter((r) => {
+      const hit = classifyDate(r[col] ?? "");
+      return hit ? toIsoDate(hit.parts) > tomorrow : false;
+    }).length;
+    if (future) warnings.push(`“${col}”: ${future} rows are dated after today; a clock, or an export of planned work`);
+  }
   if (/not UTF-8/.test(file.detection.encoding)) warnings.push(`encoded as ${file.detection.encoding}; the data request asks for UTF-8`);
   for (const d of dateFormats) if (/assumed|inconsistent/.test(d.format)) warnings.push(`“${d.column}”: ${d.format}`);
   if (mapping) for (const f of mapping.fields) if (f.note) warnings.push(`${f.label}: ${f.note}`);

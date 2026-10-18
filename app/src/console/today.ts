@@ -27,6 +27,8 @@ export type TodayDigest = {
   lastImportAt: Date | null;
   /** The property expects its export at this time (settings) and it has not arrived today. */
   exportLate: { expectedAt: string } | null;
+  /** Background jobs that failed in the last 24 hours, newest first. */
+  failedJobs: { id: string; kind: string; error: string | null; finishedAt: Date }[];
   cameBack: { rows: IssueBrief[]; total: number };
   unassigned: { rows: IssueBrief[]; total: number };
   verificationsDue: { rows: VerificationRow[]; total: number };
@@ -65,7 +67,7 @@ export async function getTodayDigest(db: Db, ctx: TenantContext, p: { timeZone: 
   const limit = p.limit ?? 5;
   const tz = p.timeZone;
   const dept = p.department ? sql`and i.department = ${p.department}` : sql``;
-  const [records, lastImport, cameBack, unassigned, due] = await Promise.all([
+  const [records, lastImport, cameBack, unassigned, due, failedJobs] = await Promise.all([
     withTenant(db, ctx, (tx) =>
       tx.execute<{ source: string; count: number }>(sql`
         select source::text as source, count(*)::int as count
@@ -119,9 +121,17 @@ export async function getTodayDigest(db: Db, ctx: TenantContext, p: { timeZone: 
       `),
     ),
     listVerifications(db, ctx, { view: "due", now: new Date(), timeZone: tz, userId: p.userId, department: p.department, pageSize: limit }),
+    withTenant(db, ctx, (tx) =>
+      tx.execute<{ id: string; kind: string; error: string | null; finished_at: Date }>(sql`
+        select id, kind::text as kind, error, finished_at from jobs
+        where status = 'failed' and finished_at > now() - interval '24 hours'
+        order by finished_at desc limit 3
+      `),
+    ),
   ]);
   return {
     todayRecords: { total: records.reduce((n, r) => n + r.count, 0), bySource: records.map((r) => ({ source: r.source, count: r.count })) },
+    failedJobs: failedJobs.map((j) => ({ id: j.id, kind: j.kind, error: j.error, finishedAt: new Date(j.finished_at) })),
     lastImportAt: lastImport.at,
     exportLate: isExportLate({ importTime: lastImport.importTime, lastImportAt: lastImport.at, now: new Date(), timeZone: tz }) ? { expectedAt: lastImport.importTime! } : null,
     cameBack: { rows: cameBack.map(toBrief), total: cameBack[0]?.total ?? 0 },

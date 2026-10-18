@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
@@ -12,14 +13,16 @@ import type { ActionResult } from "@/console/issue-actions";
  */
 export function useActionToast(state: ActionResult | null, onOk?: () => void) {
   const seen = useRef<number | null>(null);
+  const router = useRouter();
   useEffect(() => {
     if (!state || seen.current === state.at) return;
     seen.current = state.at;
     if (state.ok) {
       toast.success(state.message);
       onOk?.();
+      if (state.href) router.push(state.href);
     } else {
       toast.error(state.message, { duration: Infinity, closeButton: true });
     }
-  }, [state, onOk]);
+  }, [state, onOk, router]);
 }

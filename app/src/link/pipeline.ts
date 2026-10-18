@@ -1,7 +1,7 @@
 import { and, eq, ne } from "drizzle-orm";
 import { schema, type Db } from "@/db";
 import { parseDmyHm } from "@/db/scripts/lib/time";
-import { findProperty } from "@/db/scripts/seed";
+import { findProperty, findPropertyById } from "@/db/scripts/seed";
 import { LINK_PROMPT_VERSION, type JudgePair, type LlmClient } from "@/normalize/llm";
 import { LocationIndex, type LocationRow } from "@/normalize/location-rules";
 import { clusterPairs } from "./cluster";
@@ -24,6 +24,8 @@ import { ACTIONABLE_SOURCES, type CandidatePair, type LinkSignal } from "./types
 
 export type LinkOptions = {
   propertyCode?: string;
+  /** Wins over the code: codes repeat across groups. */
+  propertyId?: string;
   llm?: LlmClient | null;
   useEmbeddings?: boolean;
   /** Cap on gray pairs sent to the model, highest rule score first. */
@@ -57,7 +59,7 @@ export type LinkResult = {
 
 export async function linkSignals(db: Db, opts: LinkOptions = {}): Promise<LinkResult> {
   const log = opts.log ?? (() => {});
-  const property = await findProperty(db, opts.propertyCode ?? "ASTRAEA");
+  const property = opts.propertyId ? await findPropertyById(db, opts.propertyId) : await findProperty(db, opts.propertyCode ?? "ASTRAEA");
   if (!property) throw new Error("property not seeded; run db:seed first");
   const tenant = { groupId: property.groupId, propertyId: property.id };
   const tz = property.timezone;

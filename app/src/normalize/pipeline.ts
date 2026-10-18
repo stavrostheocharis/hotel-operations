@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { schema, type Db } from "@/db";
-import { findProperty } from "@/db/scripts/seed";
+import { findProperty, findPropertyById } from "@/db/scripts/seed";
 import { detectLanguage } from "./language";
 import { inferLocation, LocationIndex, type LocationHit, type LocationRow } from "./location-rules";
 import type { LlmClient } from "./llm";
@@ -28,6 +28,8 @@ export const NORMALIZE_VERSION = "rules-v2";
 
 export type NormalizeOptions = {
   propertyCode?: string;
+  /** Wins over the code: codes repeat across groups. */
+  propertyId?: string;
   llm?: LlmClient | null;
   /** Re-process rows that were normalised before. */
   all?: boolean;
@@ -68,7 +70,7 @@ const TOPIC_EQUIPMENT: Record<string, string[]> = { elevator_stuck: ["elevator",
 
 export async function normalizeSignals(db: Db, opts: NormalizeOptions = {}): Promise<NormalizeResult> {
   const log = opts.log ?? (() => {});
-  const property = await findProperty(db, opts.propertyCode ?? "ASTRAEA");
+  const property = opts.propertyId ? await findPropertyById(db, opts.propertyId) : await findProperty(db, opts.propertyCode ?? "ASTRAEA");
   if (!property) throw new Error("property not seeded; run db:seed first");
   const tenant = { groupId: property.groupId, propertyId: property.id };
 

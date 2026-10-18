@@ -4,7 +4,7 @@ import { createdAt, id, jsonbObject, updatedAt } from "./common";
 import { users } from "./tenancy";
 import { tenantColumns } from "./tenant";
 
-export const jobKind = pgEnum("job_kind", ["normalize", "link", "embed", "import", "audit"]);
+export const jobKind = pgEnum("job_kind", ["normalize", "link", "embed", "import", "audit", "check"]);
 export const jobStatus = pgEnum("job_status", ["queued", "running", "succeeded", "failed", "cancelled"]);
 
 /**
@@ -43,7 +43,7 @@ export const jobs = pgTable(
 );
 
 export const importSource = pgEnum("import_source", ["upload", "folder"]);
-export const importStatus = pgEnum("import_status", ["uploaded", "checked", "loading", "loaded", "failed", "discarded"]);
+export const importStatus = pgEnum("import_status", ["uploaded", "checking", "checked", "loading", "loaded", "failed", "discarded"]);
 
 /**
  * One delivery of a client's exports: the files, the reality check's

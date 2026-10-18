@@ -12,28 +12,23 @@ import { getViewer, requireViewer } from "./viewer";
 
 export type SignInState = { error: string | null };
 
-/** Five failed attempts per email per 15 minutes, per process. */
-const attempts = new Map<string, { count: number; resetAt: number }>();
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 15 * 60_000;
-
-function tooManyAttempts(email: string): boolean {
-  const now = Date.now();
-  const a = attempts.get(email);
-  if (!a || a.resetAt < now) return false;
-  return a.count >= MAX_ATTEMPTS;
-}
-
-function recordFailure(email: string) {
-  const now = Date.now();
-  const a = attempts.get(email);
-  if (!a || a.resetAt < now) attempts.set(email, { count: 1, resetAt: now + WINDOW_MS });
-  else a.count++;
-}
-
 /** Only same-site paths are honoured as a return target. */
 function safeNext(raw: FormDataEntryValue | null): string {
   return safeReturnPath(typeof raw === "string" ? raw : null) ?? "/today";
+}
+
+/**
+ * Failed attempts are counted in the database (auth_sign_in_* functions):
+ * five per email and address in fifteen minutes, fifty per address, shared
+ * by every replica and surviving restarts.
+ */
+/** A JS array as one `text[]` argument (drizzle would otherwise expand it into a row). */
+const textArray = (keys: string[]) => sql`array[${sql.join(keys.map((k) => sql`${k}`), sql`, `)}]::text[]`;
+
+async function attemptKeys(email: string): Promise<string[]> {
+  const h = await headers();
+  const ip = (h.get("x-forwarded-for")?.split(",")[0] ?? h.get("x-real-ip") ?? "local").trim().slice(0, 64);
+  return [`e:${email}|${ip}`, `ip:${ip}`];
 }
 
 export async function signIn(_prev: SignInState, formData: FormData): Promise<SignInState> {
@@ -43,18 +38,20 @@ export async function signIn(_prev: SignInState, formData: FormData): Promise<Si
   const password = String(formData.get("password") ?? "");
   const next = safeNext(formData.get("next"));
   if (!email || !password) return { error: t("signIn.errors.missing") };
-  if (tooManyAttempts(email)) return { error: t("signIn.errors.tooMany") };
-
   const db = getAppDb();
+  const keys = await attemptKeys(email);
+  const [blocked] = await db.execute<{ auth_sign_in_blocked: boolean }>(sql`select auth_sign_in_blocked(${textArray(keys)})`);
+  if (blocked?.auth_sign_in_blocked) return { error: t("signIn.errors.tooMany") };
+
   const [cred] = await db.execute<{ user_id: string; group_id: string; is_active: boolean; password_hash: string }>(
     sql`select * from auth_credentials(${email})`,
   );
   const ok = cred ? await verifyPassword(password, cred.password_hash) : await verifyPassword(password, DUMMY_HASH).then(() => false);
   if (!cred || !ok || !cred.is_active) {
-    recordFailure(email);
+    await db.execute(sql`select auth_sign_in_failed(${textArray(keys)})`);
     return { error: cred && !cred.is_active && ok ? t("signIn.errors.inactive") : t("signIn.errors.wrong") };
   }
-  attempts.delete(email);
+  await db.execute(sql`select auth_sign_in_cleared(${textArray(keys)})`);
 
   const token = newSessionToken();
   const expires = new Date(Date.now() + SESSION_DAYS * 86_400_000);

@@ -33,9 +33,14 @@ pnpm jobs:worker --job <id>   # one job by id
    queued or running and refreshes the page once when it ends. A job still
    queued after two minutes says that no worker seems to be running.
 
+The worker resolves the property from the job row's `property_id`, never
+from a code (codes repeat across groups); `params.propertyCode` is kept
+only for the log.
+
 Kinds: `normalize` (`normalizeSignals`), `link` (`linkSignals`), `embed`
-(`embedSignals`), `import` (load a batch, then normalise, then link),
-`audit` (reserved; the audit is computed on view). A partial unique index,
+(`embedSignals`), `check` (the reality check of a batch, report and
+mapping stored on it), `import` (load a batch, then normalise, then
+link), `audit` (reserved; the audit is computed on view). A partial unique index,
 `jobs_one_active_per_kind`, allows one queued or running job per kind and
 property; a second request gets the "already running" toast.
 
@@ -57,6 +62,15 @@ own for jobs silent for ten minutes, and fails any batch left `loading`
 by a job that already ended. Nothing restarts automatically: a half-done
 import is visible in the batch and can be re-run; every insert is
 idempotent on (property, source, external id).
+
+## When something fails
+
+A failed job lands on Today for 24 hours ("a background job (match)
+failed, 18 Oct, 22:17", with a link to Imports for managers) and as a
+`job.finished` event with `status: failed`. With `JOBS_ALERT_WEBHOOK` set,
+the worker also posts one line (`{ "text": … }`) when a job fails and when
+the sweeper marks dead jobs failed (`src/jobs/alerts.ts`); a Slack incoming
+webhook takes it as is.
 
 ## Reading jobs
 

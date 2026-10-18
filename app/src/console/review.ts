@@ -122,6 +122,14 @@ export async function listReviewPairs(db: Db, ctx: TenantContext, p: { limit?: n
   });
 }
 
+/** Decisions taken in the last seven days, the one productivity number on the Review screen. */
+export async function countDecidedThisWeek(db: Db, ctx: TenantContext): Promise<number> {
+  return withTenant(db, ctx, async (tx) => {
+    const [r] = await tx.execute<{ n: number }>(sql`select count(*)::int as n from ai_suggestions where kind = 'link' and decision in ('accepted', 'rejected') and decided_at > now() - interval '7 days'`);
+    return r?.n ?? 0;
+  });
+}
+
 export async function countPendingPairs(db: Db, ctx: TenantContext): Promise<number> {
   return withTenant(db, ctx, async (tx) => {
     const [r] = await tx.execute<{ n: number }>(sql`select count(*)::int as n from ai_suggestions where kind = 'link' and decision = 'pending'`);

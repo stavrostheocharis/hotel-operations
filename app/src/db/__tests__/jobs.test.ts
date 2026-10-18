@@ -1,8 +1,10 @@
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDb, schema, type Db, type TenantContext } from "../index";
+import { dataDir } from "../scripts/lib/paths";
 import { findProperty } from "../scripts/seed";
 import { createFakeLlm } from "@/normalize/llm";
+import { getTodayDigest } from "@/console/today";
 import { getJob, latestJobs, listJobs } from "@/jobs/queries";
 import { claimNextJob, markStalled, runClaimed, runJob, sweepStalled } from "@/jobs/run";
 import { TEST_APP_URL, TEST_URL } from "./env";
@@ -57,6 +59,30 @@ describe("background jobs", () => {
     expect(events.map((e) => e.type).sort()).toEqual(["job.finished", "job.started"]);
     // the job is not queued any more: a second run is refused
     await expect(runJob(admin, id, { llm: createFakeLlm() })).rejects.toThrow(/not queued/);
+  });
+
+  it("works from the job's property id alone, without a code in the params", async () => {
+    const id = await insertJob({ kind: "normalize", params: {} });
+    const out = await runJob(admin, id, { llm: createFakeLlm(), heartbeatMs: 50 });
+    expect(out.status).toBe("succeeded");
+  });
+
+  it("checks an export in the worker: the batch goes checking → checked with its verdict and mapping", async () => {
+    const [batch] = await admin
+      .insert(schema.importBatches)
+      .values({ ...tenant, source: "folder", dir: dataDir(), files: [], status: "checking", createdBy: gmId })
+      .returning({ id: schema.importBatches.id });
+    const id = await insertJob({ kind: "check", params: { batchId: batch.id } });
+    const out = await runJob(admin, id, { heartbeatMs: 50 });
+    expect(out.status).toBe("succeeded");
+    expect(out.result?.verdict).toBe("go");
+    const [b] = await admin.select().from(schema.importBatches).where(eq(schema.importBatches.id, batch.id));
+    expect(b.status).toBe("checked");
+    expect(b.verdict).toBe("go");
+    expect((b.mapping as { files: unknown[] }).files.length).toBeGreaterThan(5);
+    const events = await admin.execute<{ n: number }>(sql`select count(*)::int as n from events where entity_id = ${batch.id} and type = 'import.checked'`);
+    expect(Number(events[0].n)).toBe(1);
+    await admin.delete(schema.importBatches).where(eq(schema.importBatches.id, batch.id));
   });
 
   it("allows one queued or running job per kind and property", async () => {
@@ -151,6 +177,12 @@ describe("background jobs", () => {
     expect((await sweepStalled(admin)).batches).toBe(1);
     await admin.update(schema.jobs).set({ status: "cancelled" }).where(eq(schema.jobs.id, live));
     await admin.delete(schema.importBatches).where(eq(schema.importBatches.id, batch.id));
+  });
+
+  it("a job that failed today shows on Today", async () => {
+    const digest = await getTodayDigest(app, ctx, { timeZone: "Europe/Athens", userId: gmId });
+    expect(digest.failedJobs.length).toBeGreaterThanOrEqual(1);
+    expect(digest.failedJobs[0].kind).toBeDefined();
   });
 
   it("lists through the app role under the tenant and gives the latest of each kind", async () => {

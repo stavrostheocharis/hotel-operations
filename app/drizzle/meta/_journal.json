@@ -78,6 +78,20 @@
       "when": 1792351896510,
       "tag": "0010_property_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792359422970,
+      "tag": "0011_auth_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792359688104,
+      "tag": "0012_check_job",
+      "breakpoints": true
     }
   ]
 }

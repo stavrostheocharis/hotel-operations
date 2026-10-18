@@ -4,14 +4,15 @@ import Link from "next/link";
 import { useEffect, useTransition } from "react";
 import { toast } from "sonner";
 
-import { SourceBadge, StatusBadge } from "@/components/console/badges";
+import { SourceBadge } from "@/components/console/badges";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { fmtDateTime } from "@/console/format";
 import type { ReviewPair, ReviewSide } from "@/console/review";
 import type { PairVerdict } from "@/console/review";
 import { decidePairAction, undoPairAction } from "@/console/review-actions";
-import { t } from "@/i18n";
+import { label, t } from "@/i18n";
 import { needsTranslation } from "@/console/format";
 import { topicLabel } from "@/console/format";
 
@@ -126,6 +127,7 @@ export function UndoButton({ suggestionId }: { suggestionId: string }) {
   );
 }
 
+/** A decision in its own words, not an issue status: "same" is green, "not the same" is quiet. */
 export function RecentDecisionBadge({ decision }: { decision: string }) {
-  return <StatusBadge status={decision === "accepted" ? "verified" : "closed_unverified"} />;
+  return <Badge variant={decision === "accepted" ? "success" : "secondary"}>{label("review.decided", decision)}</Badge>;
 }

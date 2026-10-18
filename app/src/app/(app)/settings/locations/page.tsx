@@ -6,7 +6,7 @@ import { requireViewer } from "@/auth/viewer";
 import { EmptyState } from "@/components/console/empty-state";
 import { PageHeader } from "@/components/console/page-header";
 import { PageSkeleton } from "@/components/console/page-skeleton";
-import { AddLocationDialog, AliasEditor, MapSpelling, ServesDialog, type PlaceOption } from "@/components/settings/location-tools";
+import { AddLocationDialog, AliasEditor, MapSpelling, RenameDialog, ServesDialog, type PlaceOption } from "@/components/settings/location-tools";
 import { SettingsTabs, visibleSettingsTabs } from "@/components/settings/settings-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,7 +29,7 @@ export default function SettingsLocationsPage(props: PageProps<"/settings/locati
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("settings.title")} description={t("settings.locations.question")} />
-      <Suspense fallback={<PageSkeleton variant="table" />}>
+      <Suspense fallback={<PageSkeleton variant="table" header={false} />}>
         <Body searchParams={props.searchParams} />
       </Suspense>
     </div>
@@ -135,7 +135,10 @@ async function Body({ searchParams }: Pick<PageProps<"/settings/locations">, "se
                         {n.code}
                       </Link>
                     </TableCell>
-                    <TableCell className="whitespace-normal">{n.name}</TableCell>
+                    <TableCell className="whitespace-normal">
+                      {n.name}
+                      {canEdit && n.kind !== "property" ? <RenameDialog locationId={n.id} name={n.name} /> : null}
+                    </TableCell>
                     <TableCell className="hidden text-muted-foreground md:table-cell">{n.parentId ? (nameOf.get(n.parentId) ?? "–") : "–"}</TableCell>
                     <TableCell className="whitespace-normal">
                       {canEdit ? <AliasEditor locationId={n.id} aliases={n.aliases} /> : <span className="text-caption text-muted-foreground">{n.aliases.join(" · ")}</span>}

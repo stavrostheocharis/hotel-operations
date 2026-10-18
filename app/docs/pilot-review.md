@@ -14,10 +14,12 @@ need work before the first client file goes in. None of it is large; most
 of section A is a few days.
 
 **Status.** The six blockers of section A are fixed (branch
-`pilot-blockers`, merged). Section B is worked through on branch
-`pilot-before` in seven commits, with the fix noted under each item; what
-stays open from B is the reality check running inline in the web process
-(moved to section C). Section C stands as written.
+`pilot-blockers`, merged). Section B is done on branch `pilot-before`
+(merged), with the fix noted under each item. Section C is worked through
+on branch `pilot-month` in five commits, with the fix noted under each
+item; the reality check now runs in the worker, which closes what B had
+left open. Nothing in this review stays open; what the first month of real
+use turns up starts a new list.
 
 ## A. Blockers: change before any real data goes in
 
@@ -141,9 +143,8 @@ Data and rebuilds
 - The reality check and the upload run inside the web process over whole
   files in memory; PaaS request limits will cut them.
   **Partly fixed on `pilot-before`:** the upload refuses an oversized body
-  from its `content-length` before reading it. The check itself still runs
-  inline (a hotel's season is thousands of rows, not hundreds of
-  thousands); moving it to the worker stays in section C.
+  from its `content-length` before reading it. **Fixed on `pilot-month`:**
+  the check runs in the worker as a `check` job.
 - Translations: the demo DB was normalised rules-only, so 1,780 of 3,330
   text records show in German, Greek, French or Italian with no marker
   (`coalesce(text_en, text_original)`). Run normalisation with the model
@@ -269,6 +270,14 @@ Phones
   the mapping; a mis-mapped column is a code change). Occupancy never
   updates. Alerts on failed jobs and on an export that is late against the
   property's import time (today the time is only displayed).
+  **Fixed on `pilot-month` (alerts):** a failed job shows on Today for 24
+  hours, and `JOBS_ALERT_WEBHOOK` gets one line per failed or swept job.
+  **Fixed on `pilot-month` (editor, memory, occupancy):** "Which column
+  feeds which field" on the batch page, remembered per property and
+  applied at every later check; occupancy is upserted; the reality check
+  now runs in the worker (`check` job, batch status `checking`), closing
+  the item left open from section B; the check also warns about rows
+  dated after today.
 - Sessions slide forever (add an absolute lifetime); the sign-in limiter is
   per process and per email; `auth_set_password` and `auth_create_session`
   take any user id (add a group check inside the functions); per-property
@@ -276,16 +285,33 @@ Phones
   overrides yet); the worker resolves the property by code without the
   group; the PII scrubber turns 10-digit folio numbers starting with 2 into
   "[phone]"; status races between the actions and the worker.
+  **Fixed on `pilot-month`:** 90-day session lifetime; attempts counted in
+  the database per email+address and per address; the two functions check
+  group and activity; entity writes run under the selected property;
+  the worker resolves the property by id; Greek landlines are 21–28, so
+  a 20xx folio is left alone; a batch is marked loading before its job
+  exists and the worker's final write applies only while it still is.
 - Accessibility: labels without `htmlFor` in the user dialogs, tables
   without header rows (jobs, files, scorecard), pager arrows without names,
   controls under 40 px in the tree and alias chips, the categories select
   uses an undefined `rounded-input` utility. The list skeleton draws a
   second page title under the real one on every navigation.
+  **Fixed on `pilot-month`:** labels bound to their selects, header rows on
+  the three tables, named pager arrows, 40 px hit areas for the tree's
+  expand buttons and the alias chips' remove buttons, a real radius on the
+  categories select, and list skeletons without the duplicate title.
 - Dead dictionary keys and a missing Rename UI for places; review decisions
   badged with issue-status words ("Verified" for "same problem"); "decided
   this week" capped at 10; 300 pending review pairs on day one (triage with
   the model judge before handing the queue to a supervisor); future-dated
   demo records show "in 3 d".
+  **Fixed on `pilot-month`:** `pnpm check:i18n` now also fails on a
+  dictionary key nothing reads, and the dead keys are gone; "Rename…" on
+  Settings → Locations; review decisions read "same" / "not the same" in
+  their own colours; "decided this week" is a real count; a created issue
+  is reached from its toast; the check flags records dated after today;
+  `docs/deploy.md` says to run the matching with the model before handing
+  Review to a supervisor.
 
 ## What held up
 

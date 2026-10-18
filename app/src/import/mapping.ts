@@ -98,3 +98,39 @@ export function validateMapping(mapping: ImportMapping, files: ParsedFile[]): st
 }
 
 export { type FieldMatch };
+
+/** What a person corrected on earlier batches: per dataset, field → column name. Stored in `properties.settings.mappingOverrides`. */
+export type MappingOverrides = Partial<Record<DatasetKey, Record<string, string>>>;
+
+/**
+ * Apply remembered corrections to a freshly derived mapping: a column named
+ * in an override wins whenever the file still has that column. Returns a
+ * new mapping; the report is untouched.
+ */
+export function applyMappingOverrides(mapping: ImportMapping, report: RealityReport, overrides: MappingOverrides | undefined): ImportMapping {
+  if (!overrides) return mapping;
+  const columnsOf = new Map(report.files.map((f) => [f.path, new Set([...f.fields.flatMap((x) => x.columns), ...f.unmappedColumns, ...f.identityColumns])]));
+  return {
+    ...mapping,
+    files: mapping.files.map((m) => {
+      const o = overrides[m.dataset];
+      if (!o) return m;
+      const have = columnsOf.get(m.path) ?? new Set<string>();
+      const fields = { ...m.fields };
+      for (const [field, column] of Object.entries(o)) {
+        if (!column) delete fields[field];
+        else if (have.has(column)) fields[field] = [column];
+      }
+      return { ...m, fields };
+    }),
+  };
+}
+
+/** The columns a file offers for mapping, in the file's order where known. */
+export function columnsOfFile(report: RealityReport, path: string): string[] {
+  const f = report.files.find((x) => x.path === path);
+  if (!f) return [];
+  const out: string[] = [];
+  for (const c of [...f.fields.flatMap((x) => x.columns), ...f.unmappedColumns, ...f.identityColumns]) if (!out.includes(c)) out.push(c);
+  return out;
+}
