@@ -36,3 +36,11 @@ export const STATUS_VARIANT: Record<string, "default" | "critical" | "warning" |
   verified: "success",
   closed_unverified: "secondary",
 };
+
+/** "1.2 MB", "340 kB", "12 B". */
+export function fmtBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} kB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}

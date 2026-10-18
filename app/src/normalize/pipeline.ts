@@ -56,6 +56,7 @@ type SignalRow = {
   locationId: string | null;
   locationMethod: (typeof schema.locationMethod.enumValues)[number];
   raw: Record<string, unknown>;
+  mapped: Record<string, unknown>;
   normalized: Record<string, unknown>;
   lockedFields: string[];
 };
@@ -128,6 +129,7 @@ export async function normalizeSignals(db: Db, opts: NormalizeOptions = {}): Pro
         locationId: schema.signals.locationId,
         locationMethod: schema.signals.locationMethod,
         lockedFields: schema.signals.lockedFields,
+        mapped: schema.signals.mapped,
         raw: schema.signals.raw,
         normalized: schema.signals.normalized,
       })
@@ -189,8 +191,8 @@ export async function normalizeSignals(db: Db, opts: NormalizeOptions = {}): Pro
 
       // 3. classification
       const hints = {
-        woCategory: s.source === "work_order" ? str(s.raw["Category"]) : null,
-        fdDepartment: s.source === "front_desk" ? str(s.raw["Dept"]) : null,
+        woCategory: s.source === "work_order" ? field(s, "category", "Category") : null,
+        fdDepartment: s.source === "front_desk" ? field(s, "department", "Dept") : null,
       };
       const cls = classifyText(text, hints);
       if (cls.category) upd.category = cls.category;
@@ -360,15 +362,22 @@ function str(v: unknown): string | null {
   return v === null || v === undefined ? null : String(v);
 }
 
+/** The data request's field from `mapped` (any export), else the synthetic export's own column. */
+function field(s: SignalRow, key: string, legacy: string): string | null {
+  const m = s.mapped?.[key];
+  if (m !== null && m !== undefined && m !== "") return String(m);
+  return str(s.raw[legacy]);
+}
+
 function typedLocation(s: SignalRow): string | null {
-  if (s.source === "work_order") return str(s.raw["Location"]);
-  if (s.source === "front_desk") return str(s.raw["Room"]);
+  if (s.source === "work_order") return field(s, "location", "Location");
+  if (s.source === "front_desk" || s.source === "compensation") return field(s, "room", "Room");
   return null;
 }
 
 function freeTextFor(s: SignalRow): string | null {
   if (s.source === "front_desk") {
-    return [s.textOriginal, str(s.raw["Agent note"])].filter(Boolean).join(" | ") || null;
+    return [s.textOriginal, field(s, "agent_note", "Agent note")].filter(Boolean).join(" | ") || null;
   }
   return s.textOriginal;
 }
