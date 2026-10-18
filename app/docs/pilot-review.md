@@ -14,10 +14,12 @@ need work before the first client file goes in. None of it is large; most
 of section A is a few days.
 
 **Status.** The six blockers of section A are fixed (branch
-`pilot-blockers`, merged). Section B is worked through on branch
-`pilot-before` in seven commits, with the fix noted under each item; what
-stays open from B is the reality check running inline in the web process
-(moved to section C). Section C stands as written.
+`pilot-blockers`, merged). Section B is done on branch `pilot-before`
+(merged), with the fix noted under each item. Section C is worked through
+on branch `pilot-month` in five commits, with the fix noted under each
+item; the reality check now runs in the worker, which closes what B had
+left open. Nothing in this review stays open; what the first month of real
+use turns up starts a new list.
 
 ## A. Blockers: change before any real data goes in
 
