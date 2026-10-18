@@ -1,6 +1,7 @@
 import { fmtDateTime } from "@/console/format";
 import type { IssueEvent } from "@/console/issue-detail";
 import { label, t } from "@/i18n";
+import { fmtIsoDate } from "@/console/format";
 
 /** The issue's history as sentences, newest first. Notes show their text. */
 export function ActivityList({ events, tz }: { events: IssueEvent[]; tz: string }) {
@@ -28,7 +29,7 @@ function sentence(e: IssueEvent): string {
     case "issue.detected":
       return t("issue.activity.detected", { n: Number(p.signals ?? 0) });
     case "issue.assigned":
-      if (p.owner_user_id) return t("issue.activity.assignedTo", { name: String(p.owner_name ?? "") || "owner" });
+      if (p.owner_user_id) return t("issue.activity.assignedTo", { name: String(p.owner_name ?? "") || t("exceptions.row.owner").toLowerCase() });
       if (p.department) return t("issue.activity.assignedDept", { department: label("user.department", String(p.department)) });
       return t("issue.activity.unassigned");
     case "issue.status_changed": {
@@ -54,11 +55,11 @@ function sentence(e: IssueEvent): string {
     case "issue.created_manually":
       return t("issue.activity.createdManually");
     case "verification.scheduled":
-      return `${t("verifications.schedule")} · ${String(p.due_at ?? "").slice(0, 10)}`;
+      return `${t("verifications.schedule")} · ${fmtIsoDate(String(p.due_at ?? "").slice(0, 10))}`;
     case "verification.done":
       return `${t("verifications.status.done")}: ${label("issue.outcomeKind", String(p.result ?? ""))}`;
     case "verification.rescheduled":
-      return `${t("verifications.toast.rescheduled", { date: String(p.due_at ?? "").slice(0, 10) })}`;
+      return `${t("verifications.toast.rescheduled", { date: fmtIsoDate(String(p.due_at ?? "").slice(0, 10)) })}`;
     case "verification.skipped":
       return t("verifications.toast.skipped");
     default:

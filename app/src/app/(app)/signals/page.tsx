@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { canSee } from "@/auth/screens";
 import { NotAllowed } from "@/components/console/not-allowed";
 import { needsTranslation } from "@/console/format";
+import { topicLabel } from "@/console/format";
 
 export const metadata = { title: t("signals.title") };
 
@@ -78,7 +79,7 @@ async function Inbox({ searchParams }: Pick<PageProps<"/signals">, "searchParams
     return `/signals${s ? `?${s}` : ""}`;
   };
   const sources = schema.signalSource.enumValues.filter((s) => s !== "pms").map((s) => ({ value: s, label: label("source", s) }));
-  const categories = CATEGORIES.map((c) => ({ value: c, label: c.replace(/_/g, " ") }));
+  const categories = CATEGORIES.map((c) => ({ value: c, label: label("category", c) }));
 
   let drawer: React.ReactNode = null;
   if (record) {
@@ -139,7 +140,7 @@ async function Inbox({ searchParams }: Pick<PageProps<"/signals">, "searchParams
                     </TableCell>
                     <TableCell className="hidden text-body md:table-cell">
                       {r.locationCode ? <span className="text-foreground">{r.locationCode}</span> : <span className="text-muted-foreground">{t("signals.noPlace")}</span>}
-                      {r.topic || r.category ? <div className="text-caption text-muted-foreground">{(r.topic ?? r.category ?? "").replace(/_/g, " ")}</div> : null}
+                      {r.topic || r.category ? <div className="text-caption text-muted-foreground">{topicLabel(r.topic, r.category)}</div> : null}
                     </TableCell>
                     <TableCell className="max-w-md whitespace-normal">
                       <Link href={hrefFor(view, page, r.id)} className="line-clamp-2 text-body text-foreground hover:underline focus-visible:shadow-focus focus-visible:outline-none">

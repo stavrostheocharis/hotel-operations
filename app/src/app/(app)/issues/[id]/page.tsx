@@ -24,8 +24,9 @@ import { label, t } from "@/i18n";
 import { CATEGORIES } from "@/normalize/taxonomy";
 import { LinkDecision } from "@/components/issues/link-decision";
 import { needsTranslation } from "@/console/format";
+import { categoryLabel } from "@/console/format";
 
-export const metadata = { title: "Issue" };
+export const metadata = { title: t("issue.title") };
 
 /**
  * "What is this problem, who has it, and is it really fixed?"
@@ -280,7 +281,7 @@ async function IssueContent({ params }: Pick<PageProps<"/issues/[id]">, "params"
 
 function HeaderLine({ issue, servesCount, tz }: { issue: IssueDetail; servesCount: number; tz: string }) {
   const parts: string[] = [];
-  parts.push(issue.category ? issue.category.replace(/_/g, " ") : "unclassified");
+  parts.push(categoryLabel(issue.category));
   if (issue.locationName) parts.push(`${issue.locationName} (${issue.locationCode}, ${issue.locationKind})${servesCount ? ` · ${t("issue.header.serves", { n: servesCount })}` : ""}`);
   else parts.push(t("issue.meta.noLocation"));
   parts.push(issue.ownerName ? t("issue.header.owner", { name: `${issue.ownerName}${issue.department ? `, ${label("user.department", issue.department)}` : ""}` }) : t("issue.header.noOwner"));

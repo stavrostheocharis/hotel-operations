@@ -238,6 +238,18 @@ Words
   **Fixed on `pilot-before` (the late line):** Today says "the export
   expected at 06:10 has not arrived yet" once that time has passed in the
   property's zone with no import since (`isExportLate`).
+  **Fixed on `pilot-before` (the words):** categories are named from the
+  dictionary on every screen and in the memo (`categoryLabel`,
+  `topicLabel`); one word each for a check, a record and a place; "Closed
+  unverified" and "Mark resolved" everywhere; no engine, worker, embedding
+  or linking run on a hotel screen (matching run, background service,
+  similarity index); the check's verdicts read "Ready to load / Needs
+  reshaping / Not loadable" and its colours "Good / Watch / Poor"; relative
+  times, metadata titles, the tree's expand/collapse, "owner",
+  "unclassified", "language by", "moved from" and the dialogs' Close come
+  from the dictionary; dates: "12 Jul" in the current year, "12 Jul 2025"
+  otherwise, "1 Apr 2026 – 31 Oct 2026" for periods, "Apr 2026" for months,
+  no raw ISO on any screen; the developer notes left the copy.
 
 Phones
 

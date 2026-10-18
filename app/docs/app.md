@@ -12,8 +12,8 @@ action that re-checks the viewer's capability (`docs/auth.md`).
 | `/today` | What needs a person today? | GM, duty manager, department head | `console.md` |
 | `/exceptions` | Which problems are not finished? | department heads, GM | `console.md` |
 | `/issues/[id]` | What is this problem, who has it, is it really fixed? | whoever owns it | `console.md` |
-| `/verifications` | Which fixes must be checked, and did they hold? | supervisors, staff | `console.md` |
-| `/signals`, `/signals/[id]` | What came in, and did each record find its problem? | supervisors | `console.md` |
+| `/verifications` (Checks) | Which fixes must be checked, and did they hold? | supervisors, staff | `console.md` |
+| `/signals`, `/signals/[id]` (Records) | What came in, and did each record find its problem? | supervisors | `console.md` |
 | `/review` | Are these two records the same problem? | supervisors | `console.md`, `linking.md` |
 | `/locations`, `/locations/[code]` | Where are the problems? What happened at this place? | engineering, GM | `console.md` |
 | `/reports` | What did the season teach us, and are we getting better month by month? | GM, owner | `audit.md` |

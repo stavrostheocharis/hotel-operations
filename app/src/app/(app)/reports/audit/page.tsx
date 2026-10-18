@@ -5,7 +5,7 @@ import { fmtHours, fmtInt, fmtNum, fmtPct, guest, label, LANGUAGE, pctCell, peri
 import { buildAuditReport } from "@/audit/report";
 import type { AuditReport, Verdict } from "@/audit/types";
 import { PrintButton } from "@/components/console/print-button";
-import { t, tList } from "@/i18n";
+import { label as dictLabel, t, tList } from "@/i18n";
 import { PageHeader } from "@/components/console/page-header";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -17,8 +17,9 @@ import { getAppDb } from "@/db";
 import { canSee } from "@/auth/screens";
 import { NotAllowed } from "@/components/console/not-allowed";
 import { requireViewer } from "@/auth/viewer";
+import { fmtIsoDate, fmtMonth } from "@/console/format";
 
-export const metadata = { title: "Season audit" };
+export const metadata = { title: t("reports.audit") };
 
 /**
  * The season audit as a page: the seven deliverables of the offer, computed
@@ -51,7 +52,7 @@ async function AuditContent({ searchParams }: Pick<PageProps<"/reports/audit">, 
       <PageHeader
         crumbs={[{ label: t("reports.title"), href: "/reports" }, { label: t("reports.audit") }]}
         title={`${r.property.name} · ${r.season.label}`}
-        description={t("audit.description", { from: r.season.from, to: r.season.to, records: fmtInt(r.volume.signalsTotal), issues: fmtInt(r.volume.issues), recurring: fmtInt(r.volume.issuesRecurring) })}
+        description={t("audit.description", { from: fmtIsoDate(r.season.from), to: fmtIsoDate(r.season.to), records: fmtInt(r.volume.signalsTotal), issues: fmtInt(r.volume.issues), recurring: fmtInt(r.volume.issuesRecurring) })}
         actions={
           <>
             <PrintButton />
@@ -116,7 +117,7 @@ async function AuditContent({ searchParams }: Pick<PageProps<"/reports/audit">, 
           />
           <DataTable
             head={[...tList("audit.notHeld.byMonth")]}
-            rows={r.fixesHeld.byMonth.map((m) => [m.month, fmtInt(m.closures), pctCell(m.back7, m.closures), pctCell(m.back30, m.closures), pctCell(m.back90, m.closures)])}
+            rows={r.fixesHeld.byMonth.map((m) => [fmtMonth(m.month), fmtInt(m.closures), pctCell(m.back7, m.closures), pctCell(m.back30, m.closures), pctCell(m.back90, m.closures)])}
             numeric={[1, 2, 3, 4]}
           />
         </div>
@@ -134,7 +135,7 @@ async function AuditContent({ searchParams }: Pick<PageProps<"/reports/audit">, 
           />
           <DataTable
             head={[...tList("audit.timeToResolve.byMonth")]}
-            rows={r.timeToResolve.byMonth.map((m) => [m.month, fmtInt(m.tickets), fmtHours(m.medianHours), fmtHours(m.p90Hours)])}
+            rows={r.timeToResolve.byMonth.map((m) => [fmtMonth(m.month), fmtInt(m.tickets), fmtHours(m.medianHours), fmtHours(m.p90Hours)])}
             numeric={[1, 2, 3]}
           />
         </div>
@@ -307,7 +308,7 @@ function IssueLink({ id, title }: { id: string; title: string }) {
 
 function VerdictBadge({ verdict }: { verdict: Verdict }) {
   const v = { good: "success", weak: "warning", poor: "critical", info: "secondary" } as const;
-  return <Badge variant={v[verdict]}>{verdict}</Badge>;
+  return <Badge variant={v[verdict]}>{dictLabel("audit.verdict", verdict)}</Badge>;
 }
 
 function SurveyCompare({ r }: { r: AuditReport }) {

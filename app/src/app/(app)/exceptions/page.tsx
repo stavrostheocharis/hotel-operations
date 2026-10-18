@@ -21,6 +21,7 @@ import { countIssueViews, ISSUE_SORTS, ISSUE_VIEWS, queryIssues, type IssueSort,
 import { getAppDb, schema } from "@/db";
 import { label, t } from "@/i18n";
 import { CATEGORIES } from "@/normalize/taxonomy";
+import { categoryLabel } from "@/console/format";
 
 export const metadata = { title: t("exceptions.title") };
 
@@ -72,7 +73,7 @@ async function Queue({ searchParams }: Pick<PageProps<"/exceptions">, "searchPar
     return `/exceptions${s ? `?${s}` : ""}`;
   };
   const departments = schema.department.enumValues.map((d) => ({ value: d, label: label("user.department", d) }));
-  const categories = CATEGORIES.map((c) => ({ value: c, label: c.replace(/_/g, " ") }));
+  const categories = CATEGORIES.map((c) => ({ value: c, label: label("category", c) }));
   const sorts = ISSUE_SORTS.map((s) => ({ value: s, label: label("exceptions.sort", s) }));
 
   return (
@@ -108,7 +109,7 @@ async function Queue({ searchParams }: Pick<PageProps<"/exceptions">, "searchPar
                         {r.title}
                       </Link>
                       <div className="text-caption text-muted-foreground">
-                        {[r.parentName && r.locationKind === "room" ? `${r.parentName} › ${r.locationCode}` : r.locationName ? `${r.locationName}${r.locationKind !== "room" ? ` (${r.locationKind})` : ""}` : null, r.category?.replace(/_/g, " ") ?? "unclassified"]
+                        {[r.parentName && r.locationKind === "room" ? `${r.parentName} › ${r.locationCode}` : r.locationName ? `${r.locationName}${r.locationKind !== "room" ? ` (${r.locationKind})` : ""}` : null, categoryLabel(r.category)]
                           .filter(Boolean)
                           .join(" · ")}
                       </div>

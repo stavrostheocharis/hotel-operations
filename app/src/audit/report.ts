@@ -2,6 +2,7 @@ import { sql, type SQL } from "drizzle-orm";
 import { withTenant, type Db, type TenantContext, type Tx } from "@/db";
 import { assessRecords, type RecordsRow } from "./records";
 import { AUDIT_VERSION, type AuditReport, type HeldRow, type RecurringFailure, type WinterWorksItem } from "./types";
+import { topicLabel } from "@/console/format";
 
 /**
  * Computes the season audit for the property in the tenant context. Every
@@ -456,7 +457,7 @@ function evidenceLine(f: RecurringFailure, tz: string): string {
   const where = f.locationCode ? `${f.locationCode}${f.locationKind ? ` (${f.locationKind})` : ""}` : "no fixed location";
   const n = (k: number, w: string) => `${k} ${w}${k === 1 ? "" : "s"}`;
   return [
-    `${(f.topic ?? f.category ?? "issue").replace(/_/g, " ")} at ${where}`,
+    `${topicLabel(f.topic, f.category)} at ${where}`,
     `${n(f.episodes, "episode")}, ${n(f.reopens, "reopen")}, ${n(f.closures, "closure")}, ${n(f.repeatTickets, "repeat ticket")}`,
     f.roomsAffected ? `${n(f.roomsAffected, "room")} affected` : null,
     `${n(f.guestReports, "guest report")} (${f.deskComplaints} at the desk, ${f.surveyMentions} in surveys, ${f.reviewMentions} in reviews)`,
