@@ -10,6 +10,7 @@ import { STALL_MS, SWEEP_AFTER_MS, type JobKind, type JobParams, type JobProgres
 import { applyMappingOverrides, mappingFromReport } from "@/import/mapping";
 import { readSettings } from "@/console/property-settings";
 import { runRealityCheck } from "@/reality";
+import { notifyOperator } from "./alerts";
 
 /**
  * Runs one job to its end, in whatever process calls it: the worker
@@ -133,6 +134,7 @@ export async function runClaimed(db: Db, job: JobRow, opts: RunOptions = {}): Pr
       .returning({ id: schema.jobs.id });
     if (done.length) {
       await db.insert(schema.events).values({ ...tenant, entityType: "job", entityId: job.id, type: "job.finished", actor: job.requestedBy ?? "system", payload: { kind: job.kind, status: "failed", error } });
+      await notifyOperator(`Job ${job.kind} failed for property ${job.propertyId}: ${error}`);
       if ((job.kind === "import" || job.kind === "check") && params.batchId) {
         await db
           .update(schema.importBatches)
@@ -242,6 +244,7 @@ export async function sweepStalled(db: Db, olderThanMs = SWEEP_AFTER_MS): Promis
     .where(and(eq(schema.jobs.status, "running"), sql`${schema.jobs.heartbeatAt} < now() - make_interval(secs => ${olderThanMs / 1000})`));
   let jobs = 0;
   for (const j of stale) if (await markStalled(db, j.id, olderThanMs)) jobs++;
+  if (jobs) await notifyOperator(`${jobs} background job(s) stopped reporting and were marked failed`);
   const batches = await db.execute<{ id: string }>(sql`
     update import_batches b set status = 'failed', error = coalesce(j.error, 'the job ended without finishing the load')
     from jobs j where b.job_id = j.id and b.status in ('loading', 'checking') and j.status in ('failed', 'cancelled', 'succeeded')

@@ -375,6 +375,7 @@ export const en = {
     stripNone: "{date} · no new records yet today",
     lastImport: "last import {when}",
     exportLate: "the export expected at {time} has not arrived yet",
+    jobFailed: "a background job ({kind}) failed, {when}",
     all: "All",
     mine: "Mine ({department})",
     cameBack: "Came back in the last 7 days",

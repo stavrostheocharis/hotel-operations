@@ -268,6 +268,8 @@ Phones
   the mapping; a mis-mapped column is a code change). Occupancy never
   updates. Alerts on failed jobs and on an export that is late against the
   property's import time (today the time is only displayed).
+  **Fixed on `pilot-month` (alerts):** a failed job shows on Today for 24
+  hours, and `JOBS_ALERT_WEBHOOK` gets one line per failed or swept job.
   **Fixed on `pilot-month` (editor, memory, occupancy):** "Which column
   feeds which field" on the batch page, remembered per property and
   applied at every later check; occupancy is upserted; the reality check

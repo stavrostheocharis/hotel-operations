@@ -4,6 +4,7 @@ import { createDb, schema, type Db, type TenantContext } from "../index";
 import { dataDir } from "../scripts/lib/paths";
 import { findProperty } from "../scripts/seed";
 import { createFakeLlm } from "@/normalize/llm";
+import { getTodayDigest } from "@/console/today";
 import { getJob, latestJobs, listJobs } from "@/jobs/queries";
 import { claimNextJob, markStalled, runClaimed, runJob, sweepStalled } from "@/jobs/run";
 import { TEST_APP_URL, TEST_URL } from "./env";
@@ -176,6 +177,12 @@ describe("background jobs", () => {
     expect((await sweepStalled(admin)).batches).toBe(1);
     await admin.update(schema.jobs).set({ status: "cancelled" }).where(eq(schema.jobs.id, live));
     await admin.delete(schema.importBatches).where(eq(schema.importBatches.id, batch.id));
+  });
+
+  it("a job that failed today shows on Today", async () => {
+    const digest = await getTodayDigest(app, ctx, { timeZone: "Europe/Athens", userId: gmId });
+    expect(digest.failedJobs.length).toBeGreaterThanOrEqual(1);
+    expect(digest.failedJobs[0].kind).toBeDefined();
   });
 
   it("lists through the app role under the tenant and gives the latest of each kind", async () => {

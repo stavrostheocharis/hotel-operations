@@ -71,6 +71,20 @@ async function Today({ searchParams }: Pick<PageProps<"/today">, "searchParams">
             )}
             {digest.lastImportAt ? <span className="text-muted-soft"> · {t("today.lastImport", { when: fmtDateTime(digest.lastImportAt, tz) })}</span> : null}
             {digest.exportLate ? <span className="text-warning"> · {t("today.exportLate", { time: digest.exportLate.expectedAt })}</span> : null}
+            {digest.failedJobs.map((j) => (
+              <span key={j.id} className="text-critical">
+                {" · "}
+                {t("today.jobFailed", { kind: label("jobs.kind", j.kind), when: fmtDateTime(j.finishedAt, tz) })}
+                {canSee(viewer.roleAt(), "imports") ? (
+                  <>
+                    {" "}
+                    <Link href="/imports" className="underline">
+                      {t("nav.imports")}
+                    </Link>
+                  </>
+                ) : null}
+              </span>
+            ))}
           </>
         }
       />

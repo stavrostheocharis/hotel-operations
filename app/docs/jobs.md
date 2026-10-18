@@ -63,6 +63,15 @@ by a job that already ended. Nothing restarts automatically: a half-done
 import is visible in the batch and can be re-run; every insert is
 idempotent on (property, source, external id).
 
+## When something fails
+
+A failed job lands on Today for 24 hours ("a background job (match)
+failed, 18 Oct, 22:17", with a link to Imports for managers) and as a
+`job.finished` event with `status: failed`. With `JOBS_ALERT_WEBHOOK` set,
+the worker also posts one line (`{ "text": … }`) when a job fails and when
+the sweeper marks dead jobs failed (`src/jobs/alerts.ts`); a Slack incoming
+webhook takes it as is.
+
 ## Reading jobs
 
 `src/jobs/queries.ts`: `getJob`, `listJobs`, `latestJobs` (the last of each
