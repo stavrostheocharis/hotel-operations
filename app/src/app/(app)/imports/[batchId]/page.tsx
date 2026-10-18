@@ -19,6 +19,7 @@ import { fmtBytes, fmtDateTime } from "@/console/format";
 import { getBatch, type BatchDetail } from "@/console/imports";
 import { getAppDb } from "@/db";
 import { label, t } from "@/i18n";
+import { cn } from "@/lib/utils";
 import { getJob } from "@/jobs/queries";
 import type { JobView } from "@/jobs/types";
 import { canSee } from "@/auth/screens";
@@ -137,6 +138,7 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
                   <TableHead className="text-right">{t("imports.loadedColumns.inserted")}</TableHead>
                   <TableHead className="text-right">{t("imports.loadedColumns.updated")}</TableHead>
                   <TableHead className="text-right">{t("imports.loadedColumns.skipped")}</TableHead>
+                  <TableHead className="text-right">{t("imports.loadedColumns.rejected")}</TableHead>
                   <TableHead className="hidden text-right md:table-cell">{t("imports.loadedColumns.located")}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -148,6 +150,9 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
                     <TableCell className="text-right tabular-nums">{s.inserted.toLocaleString("en-GB")}</TableCell>
                     <TableCell className="text-right tabular-nums">{(s.updated ?? 0).toLocaleString("en-GB")}</TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">{s.skipped.toLocaleString("en-GB")}</TableCell>
+                    <TableCell className={cn("text-right tabular-nums", rejectedOf(batch, source) ? "text-warning" : "text-muted-foreground")} title={rejectedReasons(batch, source)}>
+                      {rejectedOf(batch, source).toLocaleString("en-GB")}
+                    </TableCell>
                     <TableCell className="hidden text-right tabular-nums text-muted-foreground md:table-cell">{s.located.toLocaleString("en-GB")}</TableCell>
                   </TableRow>
                 ))}
@@ -201,4 +206,12 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
       ) : null}
     </>
   );
+}
+
+function rejectedOf(batch: BatchDetail, source: string): number {
+  return Object.values(batch.counts?.rejected?.[source] ?? {}).reduce((n, v) => n + v, 0);
+}
+function rejectedReasons(batch: BatchDetail, source: string): string | undefined {
+  const r = batch.counts?.rejected?.[source];
+  return r && Object.keys(r).length ? Object.entries(r).map(([k, v]) => `${k}: ${v}`).join(" · ") : undefined;
 }

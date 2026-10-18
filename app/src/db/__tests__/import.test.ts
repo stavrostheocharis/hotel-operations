@@ -178,6 +178,41 @@ describe("a later export of the same records", () => {
   });
 });
 
+describe("when the files no longer fit the mapping", () => {
+  it("refuses the load and names the column instead of loading nothing", async () => {
+    const tmp = await mkdtemp(path.join(os.tmpdir(), "oem-export-"));
+    try {
+      for (const name of await readdir(dataDir())) await copyFile(path.join(dataDir(), name), path.join(tmp, name));
+      const file = path.join(tmp, "work_orders.csv");
+      const text = await readFile(file, "utf8");
+      await writeFile(file, text.replace(/^(\ufeff?)Ticket No;Created;/, "$1Ticket No;Opened;"));
+      await expect(loadBatch(admin, { propertyCode: CODE, dir: tmp, mapping, batchId: randomUUID() })).rejects.toThrow(/work_orders\.csv: column "Created"/);
+      const [{ n }] = await admin.execute<{ n: number }>(sql`select count(*)::int as n from signals where property_id = ${b.id} and source = 'work_order'`);
+      expect(Number(n)).toBe(1148);
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("counts the rows it could not use, by reason", async () => {
+    const tmp = await mkdtemp(path.join(os.tmpdir(), "oem-export-"));
+    try {
+      for (const name of await readdir(dataDir())) await copyFile(path.join(dataDir(), name), path.join(tmp, name));
+      const file = path.join(tmp, "work_orders.csv");
+      const lines = (await readFile(file, "utf8")).split(/\r?\n/);
+      const cols = lines[5].split(";");
+      cols[1] = "sometime in July";
+      lines[5] = cols.join(";");
+      await writeFile(file, lines.join("\n"));
+      const res = await loadBatch(admin, { propertyCode: CODE, dir: tmp, mapping, batchId: randomUUID() });
+      expect(res.rejected?.work_order).toEqual({ "no usable date": 1 });
+      expect(res.sources.work_order.rows).toBe(1147);
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("the imports read model", () => {
   it("the import batch row rolls up what the load did", async () => {
     const [row] = await admin

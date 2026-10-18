@@ -1,15 +1,15 @@
-import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { schema, type Db } from "@/db";
 import { buildingAliases, equipmentAliases, facilityAliases, floorAliases, floorCode, knownPlaces, LocationResolver, parseServes, roomAliases, type BuildingDef } from "@/db/scripts/lib/locations";
 import { hash4, slugCode } from "@/db/scripts/lib/codes";
+import { stableKey } from "./keys";
 import { staffRef, stayRef } from "@/db/scripts/lib/stay-ref";
 import { zonedToUtc } from "@/db/scripts/lib/time";
 import { findProperty } from "@/db/scripts/seed";
 import { classifyDate, withTime } from "@/reality/dates";
 import { readExportFolder } from "@/reality/read";
 import type { ParsedFile } from "@/reality/types";
-import { missingForLoad, project, type FileMapping, type ImportMapping, type Rec } from "./mapping";
+import { missingForLoad, project, type FileMapping, type ImportMapping, validateMapping } from "./mapping";
 import { insertSignalsScrubbed, type InsertSummary, type SignalInsert } from "./signals";
 
 /**
@@ -33,6 +33,8 @@ export type LoadOptions = {
 
 export type LoadResult = {
   sources: Record<string, InsertSummary>;
+  /** Rows the loader could not use, per source and reason ("no usable date", "no stay key"). */
+  rejected?: Record<string, Record<string, number>>;
   locations: { created: number; links: number };
   stayKeys: number;
   occupancy: number;
@@ -41,6 +43,8 @@ export type LoadResult = {
 
 const ORDER = ["rooms", "facilities", "equipment", "stays", "work_orders", "complaints", "compensation", "surveys", "reviews", "occupancy"] as const;
 
+const KIND_SUFFIX: Record<string, string> = { building: "BLDG", floor: "FL", room: "RM", facility: "FAC", equipment: "EQ", property: "P" };
+
 export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
   const log = o.log ?? (() => {});
   const progress = o.onProgress ?? (() => {});
@@ -48,10 +52,17 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
   if (!property) throw new Error("property not seeded");
   const tz = property.timezone;
   const tenant = { groupId: property.groupId, propertyId: property.id };
-  const result: LoadResult = { sources: {}, locations: { created: 0, links: 0 }, stayKeys: 0, occupancy: 0, skipped: [] };
+  const result: LoadResult = { sources: {}, rejected: {}, locations: { created: 0, links: 0 }, stayKeys: 0, occupancy: 0, skipped: [] };
+  const reject = (source: string, reason: string) => {
+    const r = (result.rejected![source] ??= {});
+    r[reason] = (r[reason] ?? 0) + 1;
+  };
 
   progress("reading the files");
   const { files } = await readExportFolder(o.dir);
+  // The mapping was derived from the files the check saw; a renamed column or a swapped file must stop the load, not empty it.
+  const problems = validateMapping(o.mapping, files);
+  if (problems.length) throw new Error(`the mapping no longer fits the files: ${problems.join("; ")}`);
   const byPath = new Map(files.map((f) => [f.path, f]));
   const plan = ORDER.flatMap((ds) => o.mapping.files.filter((m) => m.dataset === ds));
 
@@ -65,7 +76,12 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
   if (!root) throw new Error("the property has no root location; run db:seed");
 
   const upsert = async (row: { kind: (typeof schema.locationKind.enumValues)[number]; code: string; name: string; parentId: string | null; aliases: string[]; attributes?: Record<string, unknown> }): Promise<{ id: string; created: boolean }> => {
-    const existing = locationRows.find((l) => l.code.toUpperCase() === row.code.toUpperCase());
+    let existing = locationRows.find((l) => l.code.toUpperCase() === row.code.toUpperCase());
+    if (existing && existing.kind !== row.kind) {
+      // "SPA" the facility and "SPA" the equipment are two places
+      row = { ...row, code: `${row.code}-${KIND_SUFFIX[row.kind]}` };
+      existing = locationRows.find((l) => l.code.toUpperCase() === row.code.toUpperCase());
+    }
     if (existing) return { id: existing.id, created: false };
     const [ins] = await db
       .insert(schema.locations)
@@ -113,18 +129,28 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
       continue;
     }
     const recs = project(file, m);
-    const date = (v: string | undefined, time?: string) => parseDate(v, time, m.monthFirst, tz);
+    const monthFirstFor = (field?: string) => (m.monthFirstFields && field ? m.monthFirstFields.includes(field) : m.monthFirst);
+    const date = (v: string | undefined, field?: string, time?: string) => parseDate(v, time, monthFirstFor(field), tz);
     progress(`${m.dataset}: ${recs.length} rows`);
     log(`${m.path} → ${m.dataset}: ${recs.length} rows`);
 
     switch (m.dataset) {
       case "rooms": {
+        // The same room number in two buildings (A-101 and B-101) must stay two places.
+        const buildingsOf = new Map<string, Set<string>>();
         for (const { rec } of recs) {
-          const code = (rec.room_code ?? "").trim();
-          if (!code) continue;
+          const c = (rec.room_code ?? "").trim().toUpperCase();
+          if (c) (buildingsOf.get(c) ?? buildingsOf.set(c, new Set()).get(c)!).add((rec.building || rec.building_name || "").trim().toUpperCase());
+        }
+        const prefixRooms = [...buildingsOf.values()].some((b) => b.size > 1);
+        if (prefixRooms) log("rooms: the same number appears in several buildings; room codes are prefixed with the building");
+        for (const { rec } of recs) {
+          const rawCode = (rec.room_code ?? "").trim();
+          if (!rawCode) continue;
           const building = await buildingFor(rec.building || rec.building_name, rec.building_name);
           let parentId = building?.id ?? root.id;
           const floorNum = rec.floor !== undefined && rec.floor !== "" && Number.isFinite(Number(rec.floor)) ? Number(rec.floor) : null;
+          const code = prefixRooms && building ? `${building.code}-${rawCode}` : rawCode;
           const isVilla = /^(y|yes|true|1|villa|bungalow)$/i.test(rec.is_villa ?? "");
           // villas sit under their building; only hotel rooms get a floor level
           if (building && floorNum !== null && !isVilla) {
@@ -132,8 +158,8 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
             const f = await upsert({ kind: "floor", code: floorCode(building.code, floorNum), name: `${def.name} floor ${floorNum}`, parentId: building.id, aliases: floorAliases(def, floorNum), attributes: { floor: floorNum } });
             parentId = f.id;
           }
-          const roomRow = { roomCode: code, building: building?.code ?? "", buildingName: rec.building_name ?? rec.building ?? "", floor: rec.floor ?? "", roomType: rec.room_type ?? "", view: rec.view ?? "", isVilla };
-          await upsert({ kind: "room", code, name: isVilla ? `Villa ${code.replace(/^V/i, "")}` : `Room ${code}`, parentId, aliases: roomAliases(roomRow), attributes: { building: building?.code ?? null, floor: floorNum, room_type: rec.room_type ?? null, view: rec.view ?? null, is_villa: isVilla } });
+          const roomRow = { roomCode: rawCode, building: building?.code ?? "", buildingName: rec.building_name ?? rec.building ?? "", floor: rec.floor ?? "", roomType: rec.room_type ?? "", view: rec.view ?? "", isVilla };
+          await upsert({ kind: "room", code, name: isVilla ? `Villa ${rawCode.replace(/^V/i, "")}` : `Room ${rawCode}`, parentId, aliases: [...roomAliases(roomRow), ...(prefixRooms && building ? [code, `${building.code} ${rawCode}`] : [])], attributes: { building: building?.code ?? null, floor: floorNum, room_type: rec.room_type ?? null, view: rec.view ?? null, is_villa: isVilla } });
         }
         resolver = new LocationResolver(locationRows);
         break;
@@ -177,8 +203,11 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
         }
         const rows: SignalInsert[] = [];
         for (const { rec, raw } of recs) {
-          const arrival = date(rec.arrival);
-          if (!rec.stay_key || !arrival) continue;
+          const arrival = date(rec.arrival, "arrival");
+          if (!rec.stay_key || !arrival) {
+            reject("pms", !rec.stay_key ? "no stay key" : "no usable date");
+            continue;
+          }
           rows.push({
             ...tenant,
             source: "pms",
@@ -187,7 +216,7 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
             occurredAt: arrival,
             stayRef: stayRef(property.code, rec.stay_key),
             raw,
-            mapped: { room: rec.room ?? null, arrival: arrival.toISOString(), departure: date(rec.departure)?.toISOString() ?? null, adults: rec.adults ?? null, children: rec.children ?? null, segment: rec.segment ?? null, board: rec.board ?? null },
+            mapped: { room: rec.room ?? null, arrival: arrival.toISOString(), departure: date(rec.departure, "departure")?.toISOString() ?? null, adults: rec.adults ?? null, children: rec.children ?? null, segment: rec.segment ?? null, board: rec.board ?? null },
             ingestBatchId: o.batchId,
             ...locate(resolver, rec.room),
           });
@@ -198,9 +227,12 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
       case "work_orders": {
         const rows: SignalInsert[] = [];
         for (const { rec, raw } of recs) {
-          const created = date(rec.created_at);
-          if (!created) continue;
-          const id = (rec.id ?? "").trim() || hashOf(raw);
+          const created = date(rec.created_at, "created_at");
+          if (!created) {
+            reject("work_order", "no usable date");
+            continue;
+          }
+          const id = (rec.id ?? "").trim() || stableKey([rec.created_at, rec.location, rec.description], raw);
           rows.push({
             ...tenant,
             source: "work_order",
@@ -210,7 +242,7 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
             category: rec.category || null,
             stayRef: rec.stay_key ? stayRef(property.code, rec.stay_key) : null,
             raw,
-            mapped: { id, created_at: created.toISOString(), closed_at: date(rec.closed_at)?.toISOString() ?? null, status: rec.status ?? null, location: rec.location ?? null, category: rec.category ?? null, description: rec.description ?? null, closure_note: rec.closure_note ?? null, assigned_to: rec.assigned_to ? staffRef(property.code, rec.assigned_to) : null, priority: rec.priority ?? null, reopened: rec.reopened ?? null, created_by: rec.created_by ?? null, reported_via: rec.reported_via ?? null, asset_id: rec.asset_id ?? null },
+            mapped: { id, created_at: created.toISOString(), closed_at: date(rec.closed_at, "closed_at")?.toISOString() ?? null, status: rec.status ?? null, location: rec.location ?? null, category: rec.category ?? null, description: rec.description ?? null, closure_note: rec.closure_note ?? null, assigned_to: rec.assigned_to ? staffRef(property.code, rec.assigned_to) : null, priority: rec.priority ?? null, reopened: rec.reopened ?? null, created_by: rec.created_by ?? null, reported_via: rec.reported_via ?? null, asset_id: rec.asset_id ?? null },
             ingestBatchId: o.batchId,
             ...locate(resolver, rec.location),
           });
@@ -221,9 +253,12 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
       case "complaints": {
         const rows: SignalInsert[] = [];
         for (const { rec, raw } of recs) {
-          const at = date(rec.occurred_at, rec.time);
-          if (!at) continue;
-          const id = (rec.id ?? "").trim() || hashOf(raw);
+          const at = date(rec.occurred_at, "occurred_at", rec.time);
+          if (!at) {
+            reject("front_desk", "no usable date");
+            continue;
+          }
+          const id = (rec.id ?? "").trim() || stableKey([rec.occurred_at, rec.time, rec.room, rec.description], raw);
           rows.push({
             ...tenant,
             source: "front_desk",
@@ -232,7 +267,7 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
             textOriginal: rec.description || null,
             stayRef: rec.stay_key ? stayRef(property.code, rec.stay_key) : null,
             raw,
-            mapped: { id, occurred_at: at.toISOString(), room: rec.room ?? null, category: rec.category ?? null, description: rec.description ?? null, resolution: rec.resolution ?? null, agent_note: rec.agent_note ?? null, department: rec.department ?? null, resolved_at: date(rec.resolved_at)?.toISOString() ?? null, work_order_id: rec.work_order_id ?? null, severity: rec.severity ?? null, channel: rec.channel ?? null, shift: rec.shift ?? null },
+            mapped: { id, occurred_at: at.toISOString(), room: rec.room ?? null, category: rec.category ?? null, description: rec.description ?? null, resolution: rec.resolution ?? null, agent_note: rec.agent_note ?? null, department: rec.department ?? null, resolved_at: date(rec.resolved_at, "resolved_at")?.toISOString() ?? null, work_order_id: rec.work_order_id ?? null, severity: rec.severity ?? null, channel: rec.channel ?? null, shift: rec.shift ?? null },
             ingestBatchId: o.batchId,
             ...locate(resolver, rec.room),
           });
@@ -243,12 +278,15 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
       case "compensation": {
         const rows: SignalInsert[] = [];
         for (const { rec, raw } of recs) {
-          const at = date(rec.date);
-          if (!at) continue;
+          const at = date(rec.date, "date");
+          if (!at) {
+            reject("compensation", "no usable date");
+            continue;
+          }
           rows.push({
             ...tenant,
             source: "compensation",
-            externalId: hashOf(raw),
+            externalId: stableKey([rec.date, rec.room, rec.reason, rec.type, rec.value], raw),
             occurredAt: at,
             textOriginal: rec.reason || null,
             stayRef: rec.stay_key ? stayRef(property.code, rec.stay_key) : null,
@@ -264,9 +302,12 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
       case "surveys": {
         const rows: SignalInsert[] = [];
         for (const { rec, raw } of recs) {
-          const at = date(rec.submitted_at) ?? date(rec.departure_date);
-          if (!at) continue;
-          const id = (rec.id ?? "").trim() || hashOf(raw);
+          const at = date(rec.submitted_at, "submitted_at") ?? date(rec.departure_date, "departure_date");
+          if (!at) {
+            reject("survey", "no usable date");
+            continue;
+          }
+          const id = (rec.id ?? "").trim() || stableKey([rec.submitted_at ?? rec.departure_date, rec.stay_key, rec.overall, rec.comment], raw);
           rows.push({
             ...tenant,
             source: "survey",
@@ -287,10 +328,13 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
       case "reviews": {
         const rows: SignalInsert[] = [];
         for (const { rec, raw } of recs) {
-          const at = date(firstOf(rec.review_date));
+          const at = date(firstOf(rec.review_date), "review_date");
           const text = rec.text || rec.title;
-          if (!at || !text) continue;
-          const id = (rec.id ?? "").trim() || hashOf(raw);
+          if (!at || !text) {
+            reject("review", !at ? "no usable date" : "no text");
+            continue;
+          }
+          const id = (rec.id ?? "").trim() || stableKey([rec.platform, firstOf(rec.review_date), rec.title, text], raw);
           rows.push({
             ...tenant,
             source: "review",
@@ -350,6 +394,8 @@ export function parseDate(value: string | undefined, time: string | undefined, m
   if (!value?.trim()) return null;
   const hit = classifyDate(value.trim(), monthFirst);
   if (!hit) {
+    // Only a string that names its own zone may take the runtime's parser; a naive one would land in the server's zone.
+    if (!/(Z|[+-]\d{2}:?\d{2})$/i.test(value.trim())) return null;
     const d = new Date(value);
     return Number.isNaN(d.getTime()) ? null : d;
   }
@@ -361,9 +407,6 @@ function firstOf(v: string | undefined): string | undefined {
   return v?.split(" / ")[0];
 }
 
-function hashOf(raw: Rec): string {
-  return createHash("sha1").update(JSON.stringify(raw)).digest("hex").slice(0, 16);
-}
 
 
 export type { ParsedFile, FileMapping };

@@ -670,7 +670,7 @@ export const en = {
     },
     steps: { upload: "Upload", check: "Reality check", load: "Load", link: "Normalise & link" },
     check: { dataset: "Dataset", rows: "Rows", period: "Period", missing: "Missing", scorecard: "Scorecard", unread: "Not read" },
-    loadedColumns: { source: "Source", rows: "Rows", inserted: "New", updated: "Updated", skipped: "Unchanged", located: "With a place" },
+    loadedColumns: { source: "Source", rows: "Rows", inserted: "New", updated: "Updated", skipped: "Unchanged", rejected: "Not loaded", located: "With a place" },
     batch: {
       title: "Import",
       files: "{n} files · {size}",

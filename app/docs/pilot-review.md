@@ -131,8 +131,17 @@ Data and rebuilds
   column drops rows silently. `monthFirst` is decided per file, not per
   column; two-digit years are dropped; unparsed naive dates fall back to
   the server's zone. Room codes collide across buildings.
+  **Fixed on `pilot-before`:** `stableKey()` over date, place and text;
+  `validateMapping` at load, rows rejected counted per reason and shown
+  as "Not loaded"; month-first per field; two-digit years; no runtime
+  fallback for naive dates; room numbers prefixed with the building when
+  they repeat, a kind suffix when a facility and an equipment share a code.
 - The reality check and the upload run inside the web process over whole
   files in memory; PaaS request limits will cut them.
+  **Partly fixed on `pilot-before`:** the upload refuses an oversized body
+  from its `content-length` before reading it. The check itself still runs
+  inline (a hotel's season is thousands of rows, not hundreds of
+  thousands); moving it to the worker stays in section C.
 - Translations: the demo DB was normalised rules-only, so 1,780 of 3,330
   text records show in German, Greek, French or Italian with no marker
   (`coalesce(text_en, text_original)`). Run normalisation with the model

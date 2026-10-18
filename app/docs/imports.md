@@ -70,8 +70,23 @@ this order:
   when it changed (`signal.updated`, `normalized_at` reset so the
   normaliser revisits it) — so a ticket exported open on Monday and closed
   on Wednesday closes here too; an unchanged record is left alone. The
-  external id is the file's id column or a hash of the row.
+  external id is the file's id column, or `stableKey()` over what the
+  record is (date, place, text) so a re-export with a renamed column or a
+  corrected typo elsewhere finds the same record. Rows the loader cannot
+  use are counted per source and reason (`rejected`: "no usable date",
+  "no stay key") and shown in the wizard as "Not loaded"; they never fail
+  the batch. Before any of this, the mapping is validated against the
+  files as they are now (`validateMapping`): a renamed column or a swapped
+  file fails the load with the column named, instead of loading nothing.
 - **occupancy** → `occupancy_daily`.
+
+Dates follow the column's own convention: the check decides day-first
+or month-first per column (`monthFirstFields`), two-digit years are this
+century, and a string the classifier does not understand is rejected
+rather than handed to the runtime's parser, which would read it in the
+server's time zone. A room number that appears in several buildings is
+stored as `BUILDING-NUMBER`; a code held by a place of another kind
+(a facility "SPA" and a pump "SPA") gets a kind suffix.
 
 Every signal gets `mapped`: the canonical record keyed by catalogue field
 (`created_at`, `closed_at`, `status`, `location`, `category`, `description`,
