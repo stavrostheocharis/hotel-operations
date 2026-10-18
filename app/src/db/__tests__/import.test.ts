@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { copyFile, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDb, schema, type Db } from "../index";
@@ -117,11 +120,51 @@ describe("the real-export loader", () => {
   });
 });
 
+describe("a later export of the same records", () => {
+  it("updates the canonical record of a ticket that closed since, and queues it for normalisation again", async () => {
+    const tmp = await mkdtemp(path.join(os.tmpdir(), "oem-export-"));
+    try {
+      for (const name of await readdir(dataDir())) await copyFile(path.join(dataDir(), name), path.join(tmp, name));
+      const file = path.join(tmp, "work_orders.csv");
+      const lines = (await readFile(file, "utf8")).split(/\r?\n/);
+      // Ticket No;Created;Closed;Location;Category;Description;Closure Note;Technician;Status;Priority;Reported By;Reopened
+      const idx = lines.findIndex((l, i) => i > 0 && l.split(";")[2] === "");
+      const cols = lines[idx].split(";");
+      const ticket = cols[0];
+      cols[2] = cols[1].replace(/\d{2}:\d{2}$/, "23:30");
+      cols[6] = "fixed the same evening";
+      cols[8] = "closed";
+      lines[idx] = cols.join(";");
+      await writeFile(file, lines.join("\n"));
+
+      const [before] = await admin.execute<{ id: string; mapped: Record<string, unknown> }>(sql`select id, mapped from signals where property_id = ${b.id} and source = 'work_order' and external_id = ${ticket}`);
+      expect(before.mapped.closed_at).toBeNull();
+      const res = await loadBatch(admin, { propertyCode: CODE, dir: tmp, mapping, batchId: randomUUID() });
+      expect(res.sources.work_order.inserted).toBe(0);
+      expect(res.sources.work_order.updated).toBe(1);
+      expect(res.sources.work_order.skipped).toBe(res.sources.work_order.rows - 1);
+      for (const [source, s] of Object.entries(res.sources)) if (source !== "work_order") expect(s.updated, source).toBe(0);
+      const [after] = await admin.execute<{ mapped: Record<string, unknown>; normalized_at: Date | null; raw: Record<string, unknown> }>(sql`select mapped, normalized_at, raw from signals where id = ${before.id}`);
+      expect(after.mapped.closed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(after.mapped.status).toBe("closed");
+      expect(after.mapped.closure_note).toBe("fixed the same evening");
+      expect(String(after.raw.Closed ?? "")).toBe(""); // raw is immutable: the first observation stays
+      expect(after.normalized_at).toBeNull();
+      const events = await admin.execute<{ n: number }>(sql`select count(*)::int as n from events where entity_id = ${before.id} and type = 'signal.updated'`);
+      expect(Number(events[0].n)).toBe(1);
+      const n = await normalizeSignals(admin, { propertyCode: CODE, llm: createFakeLlm() });
+      expect(n.processed).toBe(1);
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("the imports read model", () => {
   it("the import batch row rolls up what the load did", async () => {
     const [row] = await admin
       .insert(schema.importBatches)
-      .values({ groupId: b.groupId, propertyId: b.id, source: "folder", dir: dataDir(), files: [{ name: "work_orders.csv", bytes: 10 }], bytes: 10, status: "loaded", verdict: "go", counts: { sources: { work_order: { rows: 3, inserted: 2, skipped: 1, located: 2, piiRows: 0 } }, locations: { created: 0, links: 0 }, stayKeys: 0, occupancy: 0, skipped: [] } })
+      .values({ groupId: b.groupId, propertyId: b.id, source: "folder", dir: dataDir(), files: [{ name: "work_orders.csv", bytes: 10 }], bytes: 10, status: "loaded", verdict: "go", counts: { sources: { work_order: { rows: 3, inserted: 2, updated: 0, skipped: 1, located: 2, piiRows: 0 } }, locations: { created: 0, links: 0 }, stayKeys: 0, occupancy: 0, skipped: [] } })
       .returning({ id: schema.importBatches.id, files: schema.importBatches.files });
     expect(row.files).toEqual([{ name: "work_orders.csv", bytes: 10 }]);
     await admin.delete(schema.importBatches).where(eq(schema.importBatches.id, row.id));

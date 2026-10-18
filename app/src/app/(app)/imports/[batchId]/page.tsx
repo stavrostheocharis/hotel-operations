@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/console/page-header";
 import { PageSkeleton } from "@/components/console/page-skeleton";
 import { CheckButton, DiscardButton, LoadButton } from "@/components/imports/batch-tools";
 import { ReportSummary } from "@/components/imports/report-summary";
-import { recordsAdded, stageVariant } from "@/components/imports/stage";
+import { recordsAdded, recordsUpdated, stageVariant } from "@/components/imports/stage";
 import { Steps, type StepKey } from "@/components/imports/steps";
 import { JobProgress } from "@/components/jobs/job-progress";
 import { Badge } from "@/components/ui/badge";
@@ -132,6 +132,7 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
                   <TableHead>{t("imports.loadedColumns.source")}</TableHead>
                   <TableHead className="text-right">{t("imports.loadedColumns.rows")}</TableHead>
                   <TableHead className="text-right">{t("imports.loadedColumns.inserted")}</TableHead>
+                  <TableHead className="text-right">{t("imports.loadedColumns.updated")}</TableHead>
                   <TableHead className="text-right">{t("imports.loadedColumns.skipped")}</TableHead>
                   <TableHead className="hidden text-right md:table-cell">{t("imports.loadedColumns.located")}</TableHead>
                 </TableRow>
@@ -142,6 +143,7 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
                     <TableCell className="text-body text-foreground">{label("source", source)}</TableCell>
                     <TableCell className="text-right tabular-nums">{s.rows.toLocaleString("en-GB")}</TableCell>
                     <TableCell className="text-right tabular-nums">{s.inserted.toLocaleString("en-GB")}</TableCell>
+                    <TableCell className="text-right tabular-nums">{(s.updated ?? 0).toLocaleString("en-GB")}</TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">{s.skipped.toLocaleString("en-GB")}</TableCell>
                     <TableCell className="hidden text-right tabular-nums text-muted-foreground md:table-cell">{s.located.toLocaleString("en-GB")}</TableCell>
                   </TableRow>
@@ -151,6 +153,7 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
             <div className="flex flex-wrap gap-x-6 gap-y-1 px-6 py-4 text-caption text-muted-foreground">
               <span>{t("imports.batch.places", { created: batch.counts.locations.created, links: batch.counts.locations.links })}</span>
               {added !== null ? <span>{t("imports.columns.records")}: {added.toLocaleString("en-GB")}</span> : null}
+              {recordsUpdated(batch) ? <span>{t("imports.loadedColumns.updated")}: {recordsUpdated(batch).toLocaleString("en-GB")}</span> : null}
               {batch.counts.skipped.map((s) => (
                 <span key={s.path} className="text-warning">
                   {s.path}: {s.reason}

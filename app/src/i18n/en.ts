@@ -635,7 +635,7 @@ export const en = {
     },
     steps: { upload: "Upload", check: "Reality check", load: "Load", link: "Normalise & link" },
     check: { dataset: "Dataset", rows: "Rows", period: "Period", missing: "Missing", scorecard: "Scorecard", unread: "Not read" },
-    loadedColumns: { source: "Source", rows: "Rows", inserted: "New", skipped: "Already present", located: "With a place" },
+    loadedColumns: { source: "Source", rows: "Rows", inserted: "New", updated: "Updated", skipped: "Unchanged", located: "With a place" },
     batch: {
       title: "Import",
       files: "{n} files · {size}",
@@ -655,7 +655,7 @@ export const en = {
       missing: "cannot load: no column for {fields}",
       asks: "What to ask the client",
       loaded: "What got in",
-      inserted: "{inserted} new · {skipped} already present · {located} with a place",
+      inserted: "{inserted} new · {updated} updated · {skipped} unchanged · {located} with a place",
       places: "{created} places created · {links} equipment links",
       done: "Done. {issues} issues after linking, {review} pairs to review.",
       openToday: "Open Today",

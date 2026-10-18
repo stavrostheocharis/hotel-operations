@@ -17,3 +17,9 @@ export function recordsAdded(b: BatchRow): number | null {
   if (!b.counts) return null;
   return Object.values(b.counts.sources).reduce((n, s) => n + s.inserted, 0);
 }
+
+/** Rows already known whose canonical record changed (a ticket closed, a status moved). */
+export function recordsUpdated(b: BatchRow): number {
+  if (!b.counts) return 0;
+  return Object.values(b.counts.sources).reduce((n, s) => n + (s.updated ?? 0), 0);
+}

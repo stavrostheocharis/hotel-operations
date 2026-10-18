@@ -1,15 +1,20 @@
+import { sql } from "drizzle-orm";
 import { schema, type Db } from "@/db";
 import { scrubPii, scrubValue } from "@/normalize/pii";
 
 /**
  * The one way signals enter the database: personal data is removed first
- * (free text and every string in the raw row, with the counts kept), and a
- * record already present (same property, source and external id) is left
- * alone. Shared by the synthetic loader and the import loader.
+ * (free text and every string in the raw row, with the counts kept). A
+ * record already present (same property, source and external id) keeps
+ * its first observation (`raw`, text, time: the immutability trigger) but
+ * takes the new canonical record when it changed, so a ticket exported
+ * open on Monday and closed on Wednesday closes here too; such rows are
+ * normalised again. Shared by the synthetic loader and the import loader.
  */
 export type SignalInsert = typeof schema.signals.$inferInsert;
 
-export type InsertSummary = { rows: number; inserted: number; skipped: number; located: number; piiRows: number };
+/** rows = inserted + updated + skipped (unchanged). */
+export type InsertSummary = { rows: number; inserted: number; updated: number; skipped: number; located: number; piiRows: number };
 
 export async function insertSignalsScrubbed(
   db: Db,
@@ -38,20 +43,33 @@ export async function insertSignalsScrubbed(
   });
   if (piiRows) log(`${source}: personal data redacted in ${piiRows} rows`);
   let inserted = 0;
+  let updated = 0;
   const CHUNK = 500;
   for (let i = 0; i < rows.length; i += CHUNK) {
     const chunk = rows.slice(i, i + CHUNK);
+    // `xmax = 0` marks a freshly inserted row; an updated row carries the old transaction id.
     const returned = await db
       .insert(schema.signals)
       .values(chunk)
-      .onConflictDoNothing({ target: [schema.signals.propertyId, schema.signals.source, schema.signals.externalId] })
-      .returning({ id: schema.signals.id });
-    inserted += returned.length;
-    if (returned.length) {
-      await db.insert(schema.events).values(returned.map((r) => ({ ...tenant, entityType: "signal", entityId: r.id, type: "signal.created", payload: { source, batch_id: batchId } })));
+      .onConflictDoUpdate({
+        target: [schema.signals.propertyId, schema.signals.source, schema.signals.externalId],
+        set: { mapped: sql`excluded.mapped`, normalizedAt: null },
+        setWhere: sql`${schema.signals.mapped} is distinct from excluded.mapped`,
+      })
+      .returning({ id: schema.signals.id, fresh: sql<boolean>`(xmax = 0)` });
+    const created = returned.filter((r) => r.fresh);
+    const changed = returned.filter((r) => !r.fresh);
+    inserted += created.length;
+    updated += changed.length;
+    if (created.length) {
+      await db.insert(schema.events).values(created.map((r) => ({ ...tenant, entityType: "signal", entityId: r.id, type: "signal.created", payload: { source, batch_id: batchId } })));
+    }
+    if (changed.length) {
+      await db.insert(schema.events).values(changed.map((r) => ({ ...tenant, entityType: "signal", entityId: r.id, type: "signal.updated", payload: { source, batch_id: batchId } })));
     }
   }
   const located = rows.filter((r) => r.locationId).length;
-  log(`${source}: ${rows.length} rows, ${inserted} inserted, ${rows.length - inserted} already present, ${located} located by exact/alias`);
-  return { rows: rows.length, inserted, skipped: rows.length - inserted, located, piiRows };
+  const skipped = rows.length - inserted - updated;
+  log(`${source}: ${rows.length} rows, ${inserted} inserted, ${updated} updated, ${skipped} unchanged, ${located} located by exact/alias`);
+  return { rows: rows.length, inserted, updated, skipped, located, piiRows };
 }

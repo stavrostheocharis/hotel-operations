@@ -51,8 +51,13 @@ this order:
   per stay.
 - **work orders, complaints, compensation, surveys, reviews** → `signals`,
   through `insertSignalsScrubbed()` (`src/import/signals.ts`, shared with
-  the synthetic loader): PII scrub of the raw record, `onConflictDoNothing`
-  on (property, source, external id), `signal.created` events. The
+  the synthetic loader): PII scrub of the raw record, then an upsert on
+  (property, source, external id). A new record is inserted
+  (`signal.created`); a known record keeps its first observation (`raw`,
+  text, time are immutable) but takes the new canonical `mapped` record
+  when it changed (`signal.updated`, `normalized_at` reset so the
+  normaliser revisits it) — so a ticket exported open on Monday and closed
+  on Wednesday closes here too; an unchanged record is left alone. The
   external id is the file's id column or a hash of the row.
 - **occupancy** → `occupancy_daily`.
 
@@ -73,7 +78,7 @@ The same job continues with `normalizeSignals` and `linkSignals` for the
 property (the model when the switch was on and a key exists). The batch
 page then says how many issues exist and how many pairs wait in `/review`,
 with buttons to Today and Review. Loading the same export again inserts
-nothing and changes nothing.
+nothing and changes nothing; loading a later export updates what changed.
 
 Permissions: `imports.run` and `jobs.run` (group admin and GM). A batch
 whose check said **stop** can be loaded only by a group admin; **reshape**
