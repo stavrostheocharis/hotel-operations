@@ -179,3 +179,15 @@ building's equipment of that type (`LocationIndex.equipmentIn`), and the
 normaliser moves an "elevator stuck" report from a room to the building's
 lift the same way. Nothing in the pipeline names a demo code any more, so
 a client's own equipment list drives it.
+
+## What a rebuild never overwrites
+
+The linker rebuilds issues from scratch at every run and matches them to
+the existing rows by signal overlap (`reconcileIssues`). On a matched
+issue it rewrites what it derives (status, root cause, window, evidence)
+but keeps what a person did: the owner, notes, human links and outcomes,
+a human status (unless newer evidence reopens it), the date a person
+resolved it, and the title, category or severity a person edited
+(`issue.edited`). An issue nothing matched is deleted only when nobody
+touched it; a note, an assignment, a human link, a human outcome or an
+open check keeps it as superseded.

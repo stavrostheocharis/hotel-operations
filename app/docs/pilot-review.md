@@ -117,6 +117,10 @@ Data and rebuilds
   (`src/link/persist.ts:245-262`); the status itself survives. Deleting an
   "untouched" unclaimed issue cascades to its open verification tasks
   (`humanState` ignores tasks, `persist.ts:130,171`).
+  **Fixed on `pilot-before`:** fields named in `issue.edited` keep the
+  person's value, the resolved date stays while a person's status stands,
+  and an open check marks its issue as touched (superseded, never
+  deleted). Tests in `issue-workflow.test.ts`.
 - A dead worker leaves the batch `loading` (only Discard and re-upload);
   marking a live job failed lets a second rebuild start concurrently;
   final status and heartbeat writes are unconditional; a 100 MB CSV parsed
