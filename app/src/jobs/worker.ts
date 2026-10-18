@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { createDb } from "@/db";
+import { assertNotDefaultPassword, createDb } from "@/db";
 import { claimNextJob, runClaimed, runJob, sweepStalled } from "./run";
 
 /**
@@ -21,6 +21,7 @@ const say = (line: string) => console.log(`${stamp()} ${line}`);
 async function main() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
+  assertNotDefaultPassword(url, "DATABASE_URL");
   const db = createDb(url, { max: 3 });
   const one = process.argv.find((a) => a.startsWith("--job="))?.split("=")[1] ?? (process.argv.includes("--job") ? process.argv[process.argv.indexOf("--job") + 1] : undefined);
   const once = process.argv.includes("--once");

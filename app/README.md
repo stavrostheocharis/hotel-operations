@@ -61,7 +61,8 @@ pnpm check:i18n            # every string on screen comes from src/i18n/en.ts
 ```
 
 The screen map, with the question each screen answers and who it is for,
-is [docs/app.md](docs/app.md).
+is [docs/app.md](docs/app.md). Running it for a hotel, with the image, the
+worker service and the environment checklist: [docs/deploy.md](docs/deploy.md).
 
 ## Database
 

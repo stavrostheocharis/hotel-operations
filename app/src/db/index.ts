@@ -54,6 +54,7 @@ export function getAppDb(): Db {
   if (!appDb) {
     const url = process.env.DATABASE_URL_APP;
     if (!url) throw new Error("DATABASE_URL_APP is not set");
+    assertNotDefaultPassword(url, "DATABASE_URL_APP");
     appDb = createDb(url);
   }
   return appDb;
@@ -64,7 +65,20 @@ export function getAdminDb(): Db {
   if (!adminDb) {
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error("DATABASE_URL is not set");
+    assertNotDefaultPassword(url, "DATABASE_URL");
     adminDb = createDb(url);
   }
   return adminDb;
+}
+
+/**
+ * Migration 0002 creates the database roles with their own names as
+ * passwords so a checkout works at once; a production deployment must have
+ * rotated them (docs/deploy.md). Refuse to start otherwise.
+ */
+export function assertNotDefaultPassword(url: string, name: string): void {
+  if (process.env.NODE_ENV !== "production") return;
+  if (/\/\/(app_user:app_user|app_migrator:app_migrator|pii_admin:pii_admin|postgres:postgres)@/.test(url)) {
+    throw new Error(`${name} uses the development password; rotate the role's password before running in production`);
+  }
 }

@@ -67,6 +67,16 @@ of section A is a few days.
    unless set. Needed: image, HTTPS, env checklist with startup assertions
    (no default passwords, secret set), migrations on deploy, backups, log
    collection, the worker from item 3.
+   **Fixed on `pilot-blockers`:** `app/Dockerfile` (web, worker and
+   migrations from one image), `docker-compose.prod.yml` with a shared
+   uploads volume, `/api/health`, `docs/deploy.md` with the environment
+   checklist and day-two notes; production refuses to start with the
+   development role passwords, without `STAY_REF_SECRET`, or without
+   `UPLOADS_DIR`; security headers (`X-Frame-Options`, `frame-ancestors`,
+   `nosniff`, referrer and permissions policies, HSTS in production);
+   "Import the demo folder" is offered in production only when `DATA_DIR`
+   points somewhere. Backups, TLS and log shipping are the operator's,
+   documented.
 5. **A Greek client's places collapse.** `slugCode` keeps `[A-Z0-9]` only
    (`src/import/loader.ts:358-365`): Πισίνα, Εστιατόριο, Σπα all become
    code `X` and merge into one facility; buildings likewise. The `serves`

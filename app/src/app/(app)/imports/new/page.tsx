@@ -7,7 +7,7 @@ import { FolderImportButton } from "@/components/imports/batch-tools";
 import { UploadForm } from "@/components/imports/upload-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { dataDir } from "@/db/scripts/lib/paths";
+import { demoFolder } from "@/db/scripts/lib/paths";
 import { t } from "@/i18n";
 
 export const metadata = { title: t("imports.newImport") };
@@ -27,14 +27,16 @@ export default function NewImportPage() {
 async function Content() {
   const viewer = await requireViewer();
   if (!viewer.can("imports.run")) return <p className="text-body text-muted-foreground">{t("common.notAllowed")}</p>;
-  const demo = dataDir();
-  const hasDemo = await stat(demo)
-    .then((s) => s.isDirectory())
-    .catch(() => false);
+  const demo = demoFolder();
+  const hasDemo = demo
+    ? await stat(demo)
+        .then((s) => s.isDirectory())
+        .catch(() => false)
+    : false;
   return (
     <div className="flex max-w-2xl flex-col gap-6">
       <UploadForm />
-      {hasDemo ? (
+      {hasDemo && demo ? (
         <Card>
           <CardContent className="flex flex-wrap items-center justify-between gap-4">
             <div>

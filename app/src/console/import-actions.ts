@@ -8,7 +8,7 @@ import { redirect } from "next/navigation";
 import { assertCan, AuthorizationError } from "@/auth/permissions";
 import { requireViewer } from "@/auth/viewer";
 import { getAppDb, schema, withTenant } from "@/db";
-import { dataDir, uploadsDir } from "@/db/scripts/lib/paths";
+import { demoFolder, uploadsDir } from "@/db/scripts/lib/paths";
 import { mappingFromReport } from "@/import/mapping";
 import { t } from "@/i18n";
 import { enqueueJob, JobAlreadyRunning } from "@/jobs/runner";
@@ -38,10 +38,11 @@ async function run(fn: () => Promise<string>): Promise<ActionResult> {
   }
 }
 
-/** A folder must sit inside the exports folder or the uploads folder. */
+/** A folder must be the server's exports folder or sit inside the uploads folder. */
 async function safeFolder(dir: string): Promise<string> {
   const abs = path.resolve(dir);
-  const roots = [path.resolve(dataDir()), path.resolve(uploadsDir())];
+  const demo = demoFolder();
+  const roots = [...(demo ? [path.resolve(demo)] : []), path.resolve(uploadsDir())];
   if (!roots.some((r) => abs === r || abs.startsWith(r + path.sep))) throw new Error(t("imports.errors.folderOutside"));
   const s = await stat(abs).catch(() => null);
   if (!s?.isDirectory()) throw new Error(t("imports.errors.folderMissing"));
@@ -54,7 +55,7 @@ export async function createFolderBatchAction(_prev: ActionResult | null, fd: Fo
   let id: string | null = null;
   const res = await run(async () => {
     assertCan(viewer.actor(), "imports.run");
-    const dir = await safeFolder(str(fd, "dir") || dataDir());
+    const dir = await safeFolder(str(fd, "dir") || demoFolder() || "");
     const names = (await readdir(dir, { withFileTypes: true })).filter((e) => e.isFile() && !e.name.startsWith(".")).map((e) => e.name);
     const files: { name: string; bytes: number }[] = [];
     for (const name of names) files.push({ name, bytes: (await stat(path.join(dir, name))).size });
