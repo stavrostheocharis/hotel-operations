@@ -19,12 +19,24 @@ export function ReviewDeck({ pair, tz }: { pair: ReviewPair; tz: string }) {
   const decide = (verdict: PairVerdict) =>
     start(async () => {
       const res = await decidePairAction(pair.id, verdict);
-      if (res.ok) toast.success(res.message, verdict === "skip" ? undefined : { action: { label: t("review.undo"), onClick: () => start(async () => void (await undoPairAction(pair.id))) } });
+      if (res.ok)
+        toast.success(res.message, verdict === "skip" ? undefined : {
+          action: {
+            label: t("review.undo"),
+            onClick: () =>
+              start(async () => {
+                const undone = await undoPairAction(pair.id);
+                if (undone.ok) toast.success(undone.message);
+                else toast.error(undone.message, { duration: Infinity, closeButton: true });
+              }),
+          },
+        });
       else toast.error(res.message, { duration: Infinity, closeButton: true });
     });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement | null)?.closest("input, textarea, [contenteditable]") || pending) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || pending) return;
+      if ((e.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable], [role=menu], [role=menuitem], [role=listbox], [role=option], [role=combobox], [role=dialog]")) return;
       const k = e.key.toLowerCase();
       if (k === "s") decide("same");
       else if (k === "n") decide("different");

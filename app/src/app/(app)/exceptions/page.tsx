@@ -78,7 +78,7 @@ async function Queue({ searchParams }: Pick<PageProps<"/exceptions">, "searchPar
   return (
     <>
       <ViewTabs active={view} tabs={ISSUE_VIEWS.map((v) => ({ key: v, label: label("exceptions.views", v), count: counts[v], href: hrefFor(v) }))} />
-      <FilterBar departments={departments} categories={categories} sorts={sorts} />
+      <FilterBar key={keep.toString()} departments={departments} categories={categories} sorts={sorts} />
       {result.rows.length === 0 ? (
         q ? (
           <EmptyState icon={<SearchXIcon />} title={t("exceptions.empty.search", { q })} body={t("exceptions.empty.searchHint")} action={<Button variant="secondary" render={<Link href="/exceptions" />}>{t("exceptions.toolbar.clear")}</Button>} />

@@ -180,13 +180,25 @@ Dead ends in the UI
   no pending state, no toast, and `decideLink` throws instead of returning
   a result. No `error.tsx` or `not-found.tsx` anywhere, so a stale shared
   link shows Next's default page outside the shell.
+  **Fixed on `pilot-before`:** `LinkDecision` posts through
+  `useActionState` with a pending state and one toast, and `decideLink`
+  returns a result instead of throwing; `(app)/error.tsx`,
+  `(app)/not-found.tsx` and a root `not-found.tsx` speak the dictionary's
+  words inside the shell.
 - Arrow keys inside the Signals drawer move to another record while the
   focus is in a Select or Command list (`record-drawer.tsx:34-42`); the
   Review keys S/N/K fire from any focused button.
+  **Fixed on `pilot-before`:** both listeners ignore keys aimed at a
+  control (inputs, selects, buttons, lists, menus, comboboxes, dialogs) and
+  modifier combinations; the drawer prevents the page scroll.
 - "Clear filters" leaves the old text in the boxes and drops the current
   view; "Copy link" throws on an http:// LAN deployment (no clipboard
   outside secure contexts, no fallback); the Review "Undo" result is
   discarded.
+  **Fixed on `pilot-before`:** the filter bars remount on every URL change
+  (so Clear empties the boxes) and Clear keeps `?view=`; Copy link falls
+  back to the old copy command and, failing that, shows the link to select;
+  Undo reports its result.
 
 Infrastructure
 

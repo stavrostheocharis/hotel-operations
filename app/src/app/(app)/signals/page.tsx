@@ -105,7 +105,7 @@ async function Inbox({ searchParams }: Pick<PageProps<"/signals">, "searchParams
   return (
     <>
       <ViewTabs active={view} tabs={SIGNAL_VIEWS.map((v) => ({ key: v, label: label("signals.views", v), count: counts[v], href: hrefFor(v) }))} />
-      <SignalsFilterBar sources={sources} categories={categories} />
+      <SignalsFilterBar key={keep.toString()} sources={sources} categories={categories} />
       {result.rows.length === 0 ? (
         q ? (
           <EmptyState icon={<SearchXIcon />} title={t("signals.empty.search", { q })} action={<Button variant="secondary" render={<Link href="/signals" />}>{t("signals.toolbar.clear")}</Button>} />

@@ -13,6 +13,9 @@ import { t } from "@/i18n";
  * The record, in a side sheet over the list. Open state is the URL
  * (`?record=<id>`), so reload and back work; ↑/↓ walk the list.
  */
+/** Where the keyboard belongs to the control under the cursor, not to the drawer. */
+const INTERACTIVE = "input, textarea, select, button, [contenteditable], [role=listbox], [role=option], [role=menu], [role=menuitem], [role=combobox], [role=radiogroup], [role=tablist], [role=slider]";
+
 export function RecordDrawer({
   listHref,
   prevHref,
@@ -33,9 +36,17 @@ export function RecordDrawer({
   const router = useRouter();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement | null)?.closest("input, textarea, [contenteditable]")) return;
-      if (e.key === "ArrowUp" && prevHref) router.push(prevHref);
-      if (e.key === "ArrowDown" && nextHref) router.push(nextHref);
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // Arrowing inside a select, a list, a menu or a text field must not change record.
+      if ((e.target as HTMLElement | null)?.closest(INTERACTIVE)) return;
+      if (e.key === "ArrowUp" && prevHref) {
+        e.preventDefault();
+        router.push(prevHref);
+      }
+      if (e.key === "ArrowDown" && nextHref) {
+        e.preventDefault();
+        router.push(nextHref);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

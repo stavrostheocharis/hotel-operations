@@ -13,7 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { decideLink } from "@/console/actions";
 import { fmtDate, fmtDateTime, topicLabel } from "@/console/format";
 import { getIssueContext, listAssignableUsers } from "@/console/issue-detail";
 import { listIssueVerifications } from "@/console/verification";
@@ -23,6 +22,7 @@ import { defaultDepartmentFor, getPropertyProfile } from "@/console/property-set
 import { getAppDb, schema } from "@/db";
 import { label, t } from "@/i18n";
 import { CATEGORIES } from "@/normalize/taxonomy";
+import { LinkDecision } from "@/components/issues/link-decision";
 
 export const metadata = { title: "Issue" };
 
@@ -343,16 +343,7 @@ function SignalRow({ signal: s, issueId, tz, canDecide }: { signal: IssueSignal;
           {confirmed ? `${label("method", "human")} · ${s.decidedByName ?? s.decidedBy}` : `${rule.replace(/[:_]/g, " ")}${s.confidence !== null ? ` · ${Math.round(s.confidence * 100)}%` : ""}`}
         </span>
         {canDecide && s.role !== "primary" && !confirmed ? (
-          <form action={decideLink} className="ml-auto flex gap-2">
-            <input type="hidden" name="issueId" value={issueId} />
-            <input type="hidden" name="signalId" value={s.id} />
-            <Button type="submit" name="decision" value="confirm" variant="ghost">
-              {t("issue.confirm")}
-            </Button>
-            <Button type="submit" name="decision" value="reject" variant="ghost">
-              {t("issue.reject")}
-            </Button>
-          </form>
+          <LinkDecision issueId={issueId} signalId={s.id} />
         ) : null}
       </div>
     </article>

@@ -57,7 +57,7 @@ export function FilterBar({ departments, categories, sorts }: { departments: Fil
           {t("exceptions.toolbar.critical")}
         </label>
         {active ? (
-          <Button variant="ghost" render={<Link href={pathname} />}>
+          <Button variant="ghost" render={<Link href={params.get("view") ? `${pathname}?view=${params.get("view")}` : pathname} />}>
             <XIcon /> {t("exceptions.toolbar.clear")}
           </Button>
         ) : null}

@@ -70,6 +70,16 @@ export const en = {
       management: "Management",
     },
   },
+  errors: {
+    title: "Something went wrong",
+    body: "The screen could not be drawn. It has been logged; try again, or go back to Today.",
+    retry: "Try again",
+    today: "Back to Today",
+  },
+  notFound: {
+    title: "Nothing here",
+    body: "The link points at a page or a record that no longer exists.",
+  },
   notAllowed: {
     title: "Not for your role",
     body: "This screen is for other roles at the property. If you need it, ask your general manager.",
@@ -225,6 +235,7 @@ export const en = {
       edit: "Edit",
       copyLink: "Copy link",
       copied: "Link copied",
+      copyFailed: "Could not copy on this connection; here is the link to select:",
       schedule: "Schedule check",
     },
     dialog: {
@@ -259,6 +270,8 @@ export const en = {
       saving: "Saving…",
     },
     toast: {
+      confirmed: "Record confirmed for this issue",
+      rejected: "Record taken off this issue",
       assignedTo: "Owner set to {name}",
       assigned: "Assigned to {department}",
       resolved: "Marked resolved",

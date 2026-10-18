@@ -86,8 +86,26 @@ export function WorkflowActions({
   ];
 
   const copy = async () => {
-    await navigator.clipboard.writeText(window.location.href);
-    toast.success(t("issue.actions.copied"));
+    const url = window.location.href;
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(url);
+      else {
+        // http:// on a LAN has no clipboard API; the old way still works from a user gesture
+        const ta = document.createElement("textarea");
+        ta.value = url;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        ta.remove();
+        if (!ok) throw new Error("copy refused");
+      }
+      toast.success(t("issue.actions.copied"));
+    } catch {
+      toast.info(t("issue.actions.copyFailed"), { description: url, duration: 15_000, closeButton: true });
+    }
   };
 
   return (

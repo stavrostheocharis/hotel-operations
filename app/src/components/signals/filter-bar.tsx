@@ -56,7 +56,7 @@ export function SignalsFilterBar({ sources, categories }: { sources: FilterOptio
         {t("signals.toolbar.nonEnglish")}
       </label>
       {active ? (
-        <Button variant="ghost" render={<Link href={pathname} />}>
+        <Button variant="ghost" render={<Link href={params.get("view") ? `${pathname}?view=${params.get("view")}` : pathname} />}>
           <XIcon /> {t("signals.toolbar.clear")}
         </Button>
       ) : null}
