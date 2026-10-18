@@ -11,10 +11,12 @@ describe("scrubPii", () => {
   });
 
   it("leaves room numbers, timestamps, ticket and reservation numbers alone", () => {
-    const text = "Rm 312 reported at 02/04/2026 13:44, reservation 2609735, ticket 4012, floor 3, 230 (Main Building)";
+    const text = "Rm 312 reported at 02/04/2026 13:44, reservation 2609735, ticket 4012, floor 3, 230 (Main Building), folio 2026071501";
     const r = scrubPii(text);
     expect(r.text).toBe(text);
     expect(r.redactions).toEqual({});
+    // a Greek landline written without separators is still a phone
+    expect(scrubPii("call 2101234567 or 2810123456").redactions).toEqual({ phone: 2 });
   });
 
   it("redacts IBANs and card numbers but not ordinary digit runs", () => {

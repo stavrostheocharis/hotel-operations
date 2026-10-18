@@ -59,6 +59,12 @@ describe("background jobs", () => {
     await expect(runJob(admin, id, { llm: createFakeLlm() })).rejects.toThrow(/not queued/);
   });
 
+  it("works from the job's property id alone, without a code in the params", async () => {
+    const id = await insertJob({ kind: "normalize", params: {} });
+    const out = await runJob(admin, id, { llm: createFakeLlm(), heartbeatMs: 50 });
+    expect(out.status).toBe("succeeded");
+  });
+
   it("allows one queued or running job per kind and property", async () => {
     const first = await insertJob({ kind: "normalize" });
     await expectDbError(insertJob({ kind: "normalize" }), /jobs_one_active_per_kind/);

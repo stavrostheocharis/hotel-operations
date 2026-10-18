@@ -104,8 +104,13 @@ export async function loadBatchAction(_prev: ActionResult | null, fd: FormData):
     if (!batch) throw new Error("batch not found");
     if (batch.status !== "checked" && batch.status !== "failed" && batch.status !== "loaded") throw new Error(t("imports.errors.notChecked"));
     if (batch.verdict === "stop" && !viewer.can("imports.override")) throw new Error(t("imports.errors.stop"));
-    const { id } = await enqueueJob(getAppDb(), viewer.scoped, { propertyId: viewer.property.id, kind: "import", params: { batchId: batch.id, propertyCode: viewer.property.code, llm: str(fd, "llm") === "on" }, requestedBy: viewer.user.id });
-    await withTenant(getAppDb(), viewer.scoped, (tx) => tx.update(schema.importBatches).set({ status: "loading", jobId: id, error: null }).where(eq(schema.importBatches.id, batch.id)));
+    // The batch is marked before the job exists, so a fast worker's own writes always come later.
+    await withTenant(getAppDb(), viewer.scoped, (tx) => tx.update(schema.importBatches).set({ status: "loading", error: null }).where(eq(schema.importBatches.id, batch.id)));
+    const { id } = await enqueueJob(getAppDb(), viewer.scoped, { propertyId: viewer.property.id, kind: "import", params: { batchId: batch.id, propertyCode: viewer.property.code, llm: str(fd, "llm") === "on" }, requestedBy: viewer.user.id }).catch(async (err) => {
+      await withTenant(getAppDb(), viewer.scoped, (tx) => tx.update(schema.importBatches).set({ status: batch.status }).where(eq(schema.importBatches.id, batch.id)));
+      throw err;
+    });
+    await withTenant(getAppDb(), viewer.scoped, (tx) => tx.update(schema.importBatches).set({ jobId: id }).where(eq(schema.importBatches.id, batch.id)));
     return t("imports.toast.loading");
   });
 }

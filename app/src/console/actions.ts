@@ -22,7 +22,7 @@ export async function decideLink(_prev: ActionResult | null, formData: FormData)
     if (!issueId || !signalId || (decision !== "confirm" && decision !== "reject")) throw new Error("invalid link decision");
     const viewer = await requireViewer();
     assertCan(viewer.actor(), "links.decide");
-    await applyLinkDecision(getAppDb(), viewer.tenant, { issueId, signalId, decision, decidedBy: viewer.user.id });
+    await applyLinkDecision(getAppDb(), viewer.scoped, { issueId, signalId, decision, decidedBy: viewer.user.id });
     refresh();
     return { ok: true, message: decision === "confirm" ? t("issue.toast.confirmed") : t("issue.toast.rejected"), at: Date.now() };
   } catch (err) {

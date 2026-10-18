@@ -5,7 +5,7 @@ import { hash4, slugCode } from "@/db/scripts/lib/codes";
 import { stableKey } from "./keys";
 import { staffRef, stayRef } from "@/db/scripts/lib/stay-ref";
 import { zonedToUtc } from "@/db/scripts/lib/time";
-import { findProperty } from "@/db/scripts/seed";
+import { findProperty, findPropertyById } from "@/db/scripts/seed";
 import { classifyDate, withTime } from "@/reality/dates";
 import { readExportFolder } from "@/reality/read";
 import type { ParsedFile } from "@/reality/types";
@@ -24,6 +24,8 @@ import { insertSignalsScrubbed, type InsertSummary, type SignalInsert } from "./
  */
 export type LoadOptions = {
   propertyCode: string;
+  /** Wins over the code: codes repeat across groups. */
+  propertyId?: string;
   dir: string;
   mapping: ImportMapping;
   batchId: string;
@@ -48,7 +50,7 @@ const KIND_SUFFIX: Record<string, string> = { building: "BLDG", floor: "FL", roo
 export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
   const log = o.log ?? (() => {});
   const progress = o.onProgress ?? (() => {});
-  const property = await findProperty(db, o.propertyCode);
+  const property = o.propertyId ? await findPropertyById(db, o.propertyId) : await findProperty(db, o.propertyCode);
   if (!property) throw new Error("property not seeded");
   const tz = property.timezone;
   const tenant = { groupId: property.groupId, propertyId: property.id };

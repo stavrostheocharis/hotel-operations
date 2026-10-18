@@ -33,6 +33,10 @@ pnpm jobs:worker --job <id>   # one job by id
    queued or running and refreshes the page once when it ends. A job still
    queued after two minutes says that no worker seems to be running.
 
+The worker resolves the property from the job row's `property_id`, never
+from a code (codes repeat across groups); `params.propertyCode` is kept
+only for the log.
+
 Kinds: `normalize` (`normalizeSignals`), `link` (`linkSignals`), `embed`
 (`embedSignals`), `import` (load a batch, then normalise, then link),
 `audit` (reserved; the audit is computed on view). A partial unique index,

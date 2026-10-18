@@ -50,7 +50,7 @@ function looksLikePhone(candidate: string): boolean {
   if (/^0\d/.test(trimmed)) return true;
   if (/^\(?\d{2,4}\)?[\s.-]\d{3}[\s.-]?\d{3,4}$/.test(trimmed)) return true;
   // Greek mobile (69x) and landline (2x) numbers written without separators.
-  if (/^(69|2)\d{8}$/.test(digits) && !/\s/.test(trimmed)) return true;
+  if (/^(69|2[1-8])\d{8}$/.test(digits) && !/\s/.test(trimmed)) return true;
   return false;
 }
 

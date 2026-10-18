@@ -276,6 +276,12 @@ Phones
   overrides yet); the worker resolves the property by code without the
   group; the PII scrubber turns 10-digit folio numbers starting with 2 into
   "[phone]"; status races between the actions and the worker.
+  **Fixed on `pilot-month`:** 90-day session lifetime; attempts counted in
+  the database per email+address and per address; the two functions check
+  group and activity; entity writes run under the selected property;
+  the worker resolves the property by id; Greek landlines are 21–28, so
+  a 20xx folio is left alone; a batch is marked loading before its job
+  exists and the worker's final write applies only while it still is.
 - Accessibility: labels without `htmlFor` in the user dialogs, tables
   without header rows (jobs, files, scorecard), pager arrows without names,
   controls under 40 px in the tree and alias chips, the categories select

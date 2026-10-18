@@ -48,7 +48,7 @@ export async function relocateSignalAction(_prev: ActionResult | null, fd: FormD
     assertCan(viewer.actor(), "signals.review");
     const signalId = str(fd, "signalId");
     const locationId = opt(fd, "locationId");
-    const code = await withTenant(getAppDb(), viewer.tenant, async (tx) => {
+    const code = await withTenant(getAppDb(), viewer.scoped, async (tx) => {
       const s = await loadSignal(tx, signalId);
       let code: string | null = null;
       if (locationId) {
@@ -78,7 +78,7 @@ export async function reclassifySignalAction(_prev: ActionResult | null, fd: For
     if (category && !(CATEGORIES as readonly string[]).includes(category)) throw new Error("unknown category");
     if (topic && !(topic in TOPICS)) throw new Error("unknown topic");
     if (topic && category && TOPICS[topic].category !== category) throw new Error("topic does not belong to that category");
-    await withTenant(getAppDb(), viewer.tenant, async (tx) => {
+    await withTenant(getAppDb(), viewer.scoped, async (tx) => {
       const s = await loadSignal(tx, signalId);
       const locked = Array.from(new Set([...(s.lockedFields ?? []), "category", "topic"]));
       await tx.update(schema.signals).set({ category, topic, lockedFields: locked }).where(eq(schema.signals.id, s.id));
@@ -94,7 +94,7 @@ export async function linkSignalToIssueAction(_prev: ActionResult | null, fd: Fo
     assertCan(viewer.actor(), "links.decide");
     const signalId = str(fd, "signalId");
     const issueId = str(fd, "issueId");
-    const title = await withTenant(getAppDb(), viewer.tenant, async (tx) => {
+    const title = await withTenant(getAppDb(), viewer.scoped, async (tx) => {
       const s = await loadSignal(tx, signalId);
       const [issue] = await tx.select({ id: schema.issues.id, title: schema.issues.title }).from(schema.issues).where(eq(schema.issues.id, issueId));
       if (!issue) throw new Error("issue not found");
@@ -135,7 +135,7 @@ export async function createIssueFromSignalAction(_prev: ActionResult | null, fd
     const department = opt(fd, "department") as Department | null;
     const owner = opt(fd, "ownerUserId");
     const ownerUserId = owner === "none" ? null : owner;
-    issueId = await withTenant(getAppDb(), viewer.tenant, async (tx) => {
+    issueId = await withTenant(getAppDb(), viewer.scoped, async (tx) => {
       const s = await loadSignal(tx, signalId);
       const [sig] = await tx.select({ occurredAt: schema.signals.occurredAt }).from(schema.signals).where(eq(schema.signals.id, s.id));
       const tenant = { groupId: s.groupId, propertyId: s.propertyId };

@@ -21,7 +21,7 @@ async function run(fn: () => Promise<string>): Promise<ActionResult> {
 export async function decidePairAction(suggestionId: string, verdict: PairVerdict): Promise<ActionResult> {
   return run(async () => {
     const viewer = await requireViewer();
-    const res = await decidePair(getAppDb(), viewer.tenant, viewer.actor(), { suggestionId, verdict });
+    const res = await decidePair(getAppDb(), viewer.scoped, viewer.actor(), { suggestionId, verdict });
     if (verdict === "skip") return t("review.toast.skipped");
     if (verdict === "different") return t("review.toast.different");
     if (res.attachedIssueId) return t("review.toast.attached");
@@ -33,7 +33,7 @@ export async function decidePairAction(suggestionId: string, verdict: PairVerdic
 export async function undoPairAction(suggestionId: string): Promise<ActionResult> {
   return run(async () => {
     const viewer = await requireViewer();
-    await undoPairDecision(getAppDb(), viewer.tenant, viewer.actor(), { suggestionId });
+    await undoPairDecision(getAppDb(), viewer.scoped, viewer.actor(), { suggestionId });
     return t("review.toast.undone");
   });
 }

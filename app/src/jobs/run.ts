@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import { schema, type Db, type Tx } from "@/db";
-import { findProperty } from "@/db/scripts/seed";
+import { findPropertyById } from "@/db/scripts/seed";
 import { loadBatch } from "@/import/loader";
 import { embedSignals } from "@/link/embeddings";
 import { linkSignals } from "@/link/pipeline";
@@ -98,7 +98,7 @@ export async function runClaimed(db: Db, job: JobRow, opts: RunOptions = {}): Pr
   await db.insert(schema.events).values({ ...tenant, entityType: "job", entityId: job.id, type: "job.started", actor: job.requestedBy ?? "system", payload: { kind: job.kind, params } });
 
   try {
-    const property = await findProperty(db, params.propertyCode ?? (await codeOf(db, job.propertyId)));
+    const property = await findPropertyById(db, job.propertyId);
     if (!property) throw new Error("property not found");
     const llm = opts.llm !== undefined ? opts.llm : params.llm ? createOpenAiLlm() : null;
     const result = await dispatch(db, job.kind, params, { propertyCode: property.code, propertyId: property.id, llm, log, onProgress });
@@ -138,11 +138,6 @@ export async function runClaimed(db: Db, job: JobRow, opts: RunOptions = {}): Pr
   }
 }
 
-async function codeOf(db: Db, propertyId: string): Promise<string> {
-  const [p] = await db.select({ code: schema.properties.code }).from(schema.properties).where(eq(schema.properties.id, propertyId));
-  if (!p) throw new Error("property not found");
-  return p.code;
-}
 
 type Ctx = { propertyCode: string; propertyId: string; llm: LlmClient | null; log: (l: string) => void; onProgress: (p: JobProgressInfo) => void };
 
@@ -150,7 +145,7 @@ async function dispatch(db: Db, kind: JobKind, params: JobParams, c: Ctx): Promi
   switch (kind) {
     case "normalize": {
       c.onProgress({ step: "normalize", done: 0, total: 1 });
-      const r = await normalizeSignals(db, { propertyCode: c.propertyCode, llm: c.llm, all: Boolean(params.all), log: c.log });
+      const r = await normalizeSignals(db, { propertyId: c.propertyId, propertyCode: c.propertyCode, llm: c.llm, all: Boolean(params.all), log: c.log });
       c.onProgress({ step: "normalize", done: 1, total: 1 });
       return { processed: r.processed };
     }
@@ -162,7 +157,7 @@ async function dispatch(db: Db, kind: JobKind, params: JobParams, c: Ctx): Promi
     }
     case "link": {
       c.onProgress({ step: "link", done: 0, total: 1 });
-      const r = await linkSignals(db, { propertyCode: c.propertyCode, llm: c.llm, useEmbeddings: Boolean(params.embed), log: c.log, jobId: null });
+      const r = await linkSignals(db, { propertyId: c.propertyId, propertyCode: c.propertyCode, llm: c.llm, useEmbeddings: Boolean(params.embed), log: c.log, jobId: null });
       c.onProgress({ step: "link", done: 1, total: 1 });
       return { issues: r.issues, accepted: r.accepted, forReview: r.forReview, reconcile: r.reconcile };
     }
@@ -170,14 +165,14 @@ async function dispatch(db: Db, kind: JobKind, params: JobParams, c: Ctx): Promi
       if (!params.batchId) throw new Error("import needs a batch");
       const [batch] = await db.select().from(schema.importBatches).where(eq(schema.importBatches.id, params.batchId));
       if (!batch) throw new Error("batch not found");
-      await db.update(schema.importBatches).set({ status: "loading" }).where(eq(schema.importBatches.id, batch.id));
+      await db.update(schema.importBatches).set({ status: "loading" }).where(and(eq(schema.importBatches.id, batch.id), sql`${schema.importBatches.status} <> 'discarded'`));
       c.onProgress({ step: "load", done: 0, total: 3, message: "reading the files" });
-      const loaded = await loadBatch(db, { propertyCode: c.propertyCode, dir: batch.dir, mapping: batch.mapping as never, batchId: batch.id, log: c.log, onProgress: (m) => c.onProgress({ step: "load", done: 0, total: 3, message: m }) });
-      await db.update(schema.importBatches).set({ status: "loaded", counts: loaded as unknown as Record<string, unknown> }).where(eq(schema.importBatches.id, batch.id));
+      const loaded = await loadBatch(db, { propertyId: c.propertyId, propertyCode: c.propertyCode, dir: batch.dir, mapping: batch.mapping as never, batchId: batch.id, log: c.log, onProgress: (m) => c.onProgress({ step: "load", done: 0, total: 3, message: m }) });
+      await db.update(schema.importBatches).set({ status: "loaded", counts: loaded as unknown as Record<string, unknown> }).where(and(eq(schema.importBatches.id, batch.id), eq(schema.importBatches.status, "loading")));
       c.onProgress({ step: "normalize", done: 1, total: 3 });
-      const n = await normalizeSignals(db, { propertyCode: c.propertyCode, llm: c.llm, log: c.log });
+      const n = await normalizeSignals(db, { propertyId: c.propertyId, propertyCode: c.propertyCode, llm: c.llm, log: c.log });
       c.onProgress({ step: "link", done: 2, total: 3 });
-      const l = await linkSignals(db, { propertyCode: c.propertyCode, llm: c.llm, log: c.log });
+      const l = await linkSignals(db, { propertyId: c.propertyId, propertyCode: c.propertyCode, llm: c.llm, log: c.log });
       c.onProgress({ step: "done", done: 3, total: 3 });
       return { loaded: loaded as unknown as Record<string, unknown>, normalized: n.processed, issues: l.issues, forReview: l.forReview, reconcile: l.reconcile };
     }
