@@ -10,10 +10,11 @@ const toItem = (n: TreeNode): TreeItem => ({ id: n.id, code: n.code, name: n.nam
 export function LocationBrowser({ tree, selectedCode, children }: { tree: Tree; selectedCode: string | null; children: ReactNode }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
-      <ScrollArea className="max-h-[70vh] min-w-0 rounded-card bg-card p-3 lg:sticky lg:top-20">
+      {/* On a phone the place comes first and the tree waits below it; on a desktop the tree is the left rail. */}
+      <ScrollArea className="order-2 max-h-[50vh] min-w-0 rounded-card bg-card p-3 lg:order-1 lg:max-h-[70vh] lg:sticky lg:top-20">
         <LocationTree buildings={tree.buildings.map(toItem)} facilities={tree.facilities.map(toItem)} equipment={tree.equipment.map(toItem)} selectedCode={selectedCode} />
       </ScrollArea>
-      <div className="min-w-0">{children}</div>
+      <div className="order-1 min-w-0 lg:order-2">{children}</div>
     </div>
   );
 }

@@ -13,9 +13,11 @@ re-import, guest identity, the job worker and the deployment itself each
 need work before the first client file goes in. None of it is large; most
 of section A is a few days.
 
-**Status.** The six blockers of section A are fixed on branch
-`pilot-blockers`, one commit each, with the fix noted under each item.
-Section B and C stand as written.
+**Status.** The six blockers of section A are fixed (branch
+`pilot-blockers`, merged). Section B is worked through on branch
+`pilot-before` in seven commits, with the fix noted under each item; what
+stays open from B is the reality check running inline in the web process
+(moved to section C). Section C stands as written.
 
 ## A. Blockers: change before any real data goes in
 
@@ -256,6 +258,10 @@ Phones
 - Locations stacks the 70 vh tree above the content, so every place page
   opens on the tree; Verifications keeps five no-wrap columns; the batch
   header shows the full server directory path.
+  **Fixed on `pilot-before`:** on a phone the place comes first and the
+  tree (50 vh) waits below it; Checks keeps issue, due and the action on a
+  phone, with the place and instructions under the issue; the batch header
+  shows the folder's name.
 
 ## C. During the pilot: first month
 

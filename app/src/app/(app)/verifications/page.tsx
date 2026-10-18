@@ -64,11 +64,11 @@ async function List({ searchParams }: Pick<PageProps<"/verifications">, "searchP
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t("verifications.columns.place")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("verifications.columns.place")}</TableHead>
                   <TableHead>{t("verifications.columns.issue")}</TableHead>
                   <TableHead>{t("verifications.columns.due")}</TableHead>
-                  <TableHead className="hidden md:table-cell">{t("verifications.columns.assignee")}</TableHead>
-                  <TableHead>{t("verifications.columns.status")}</TableHead>
+                  <TableHead className="hidden lg:table-cell">{t("verifications.columns.assignee")}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t("verifications.columns.status")}</TableHead>
                   <TableHead className="w-28" />
                 </TableRow>
               </TableHeader>
@@ -79,22 +79,25 @@ async function List({ searchParams }: Pick<PageProps<"/verifications">, "searchP
                   const canDo = v.status === "open" && viewer.can("verification.complete", { ownerUserId: v.assigneeUserId, department: v.assigneeDepartment as never });
                   return (
                     <TableRow key={v.id}>
-                      <TableCell className="whitespace-normal">
+                      <TableCell className="hidden whitespace-normal md:table-cell">
                         <span className="text-body-strong text-foreground">{v.locationName ?? v.locationCode ?? "–"}</span>
                         {v.locationCode && v.locationName ? <span className="text-caption text-muted-foreground"> · {v.locationCode}</span> : null}
                         {v.instructions ? <div className="text-caption text-muted-foreground">{v.instructions}</div> : null}
                       </TableCell>
                       <TableCell className="max-w-xs whitespace-normal">
+                        {/* On a phone the place and the instructions ride under the issue, so one column says it all. */}
+                        <div className="text-body-strong text-foreground md:hidden">{v.locationName ?? v.locationCode ?? "–"}</div>
                         <Link href={`/issues/${v.issueId}`} className="text-body text-foreground hover:underline focus-visible:shadow-focus focus-visible:outline-none">
                           {v.issueTitle}
                         </Link>
+                        {v.instructions ? <div className="text-caption text-muted-foreground md:hidden">{v.instructions}</div> : null}
                       </TableCell>
-                      <TableCell className={cn("text-body tabular-nums", v.status === "open" && overdueDays > 0 ? "text-critical" : "text-foreground")}>
+                      <TableCell className={cn("whitespace-normal text-body tabular-nums", v.status === "open" && overdueDays > 0 ? "text-critical" : "text-foreground")}>
                         {v.status !== "open" ? (v.doneAt ? fmtDate(v.doneAt, tz) : "–") : overdueDays > 0 ? t("verifications.overdue", { n: overdueDays }) : dueIn <= 0 ? t("verifications.today") : t("verifications.dueIn", { n: dueIn })}
                         <div className="text-caption text-muted-foreground">{fmtDate(v.dueAt, tz)}</div>
                       </TableCell>
-                      <TableCell className="hidden text-body md:table-cell">{v.assigneeName ?? <span className="text-muted-foreground">{t("verifications.nobody")}</span>}</TableCell>
-                      <TableCell>
+                      <TableCell className="hidden text-body lg:table-cell">{v.assigneeName ?? <span className="text-muted-foreground">{t("verifications.nobody")}</span>}</TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         <Badge variant={v.status === "done" ? (v.result === "recurred" ? "critical" : "success") : v.status === "skipped" ? "secondary" : "default"}>
                           {v.status === "done" && v.result ? label("issue.outcomeKind", v.result) : label("verifications.status", v.status)}
                         </Badge>
