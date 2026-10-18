@@ -7,6 +7,7 @@ import { LocationIndex, type LocationRow } from "@/normalize/location-rules";
 import { clusterPairs } from "./cluster";
 import { reconcileIssues, type ReconcileResult } from "./persist";
 import { cosine, embeddingModelId, loadEmbeddings } from "./embeddings";
+import { readSettings } from "@/console/property-settings";
 import { buildIssue, type IssueDraft } from "./issues";
 import { ACCEPT, GRAY_LOW, attachOrphanReviews, generateCandidates, pairKey, type ServesMap } from "./rules";
 import { ACTIONABLE_SOURCES, type CandidatePair, type LinkSignal } from "./types";
@@ -60,6 +61,7 @@ export async function linkSignals(db: Db, opts: LinkOptions = {}): Promise<LinkR
   if (!property) throw new Error("property not seeded; run db:seed first");
   const tenant = { groupId: property.groupId, propertyId: property.id };
   const tz = property.timezone;
+  const settings = await readSettings(db, property.id);
 
   const locationRows = (await db
     .select({
@@ -303,7 +305,7 @@ export async function linkSignals(db: Db, opts: LinkOptions = {}): Promise<LinkR
       const s = members[0];
       if (!ACTIONABLE_SOURCES.includes(s.source) || !s.topic) return;
     }
-    drafts.push(buildIssue(members, pairsByCluster.get(String(i)) ?? [], index, asOf));
+    drafts.push(buildIssue(members, pairsByCluster.get(String(i)) ?? [], index, asOf, settings));
   });
   const multi = drafts.filter((d) => d.signalIds.length >= 2).length;
   log(`${clusters.length} clusters → ${drafts.length} issues (${multi} with 2+ signals)`);

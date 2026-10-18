@@ -12,23 +12,23 @@ export default function ReportsPage() {
     <div className="flex flex-col gap-6">
       <PageHeader title={t("reports.title")} description={t("reports.question")} />
       <div className="grid gap-4 md:grid-cols-2">
-        <Link href="/reports/audit" className="rounded-card focus-visible:shadow-focus focus-visible:outline-none">
-          <Card className="h-full transition-colors hover:bg-surface-hover">
-            <CardHeader>
-              <CardTitle>{t("reports.audit")}</CardTitle>
-              <CardDescription>Baseline, recurring failures, fixes that did not hold, winter-works list, records assessment. Print it for the PDF.</CardDescription>
-            </CardHeader>
-            <CardContent className="text-caption text-muted-foreground">Season to date</CardContent>
-          </Card>
-        </Link>
-        <Card className="h-full">
-          <CardHeader>
-            <CardTitle>{t("reports.monthly")}</CardTitle>
-            <CardDescription>Records, issues, repeats per 1,000 room-nights, closures held and time to resolve, month by month.</CardDescription>
-          </CardHeader>
-          <CardContent className="text-caption text-muted-foreground">{t("common.arrivesIn", { step: 7 })}</CardContent>
-        </Card>
+        <ReportCard href="/reports/audit" title={t("reports.audit")} lead={t("reports.auditLead")} />
+        <ReportCard href="/reports/monthly" title={t("reports.monthly")} lead={t("reports.monthlyLead")} />
       </div>
     </div>
+  );
+}
+
+function ReportCard({ href, title, lead }: { href: string; title: string; lead: string }) {
+  return (
+    <Link href={href} className="rounded-card focus-visible:shadow-focus focus-visible:outline-none">
+      <Card className="h-full transition-colors hover:bg-surface-hover">
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+          <CardDescription>{lead}</CardDescription>
+        </CardHeader>
+        <CardContent className="text-caption text-muted-foreground">{t("reports.seasonToDate")}</CardContent>
+      </Card>
+    </Link>
   );
 }

@@ -1,5 +1,5 @@
 import { boolean, date, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
-import { createdAt, id, updatedAt } from "./common";
+import { createdAt, id, jsonbObject, updatedAt } from "./common";
 import { department, userRole } from "./enums";
 
 /** A hotel group (Mitsis, Grecotel, ...). The top of the tenancy tree. */
@@ -24,6 +24,8 @@ export const properties = pgTable(
     timezone: text("timezone").notNull().default("Europe/Athens"),
     seasonOpen: date("season_open"),
     seasonClose: date("season_close"),
+    /** PropertySettings (src/console/property-settings.ts): recurrence windows, default departments, import time. */
+    settings: jsonbObject("settings"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

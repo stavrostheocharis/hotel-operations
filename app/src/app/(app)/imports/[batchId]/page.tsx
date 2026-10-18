@@ -129,11 +129,11 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Source</TableHead>
-                  <TableHead className="text-right">Rows</TableHead>
-                  <TableHead className="text-right">New</TableHead>
-                  <TableHead className="text-right">Already present</TableHead>
-                  <TableHead className="hidden text-right md:table-cell">With a place</TableHead>
+                  <TableHead>{t("imports.loadedColumns.source")}</TableHead>
+                  <TableHead className="text-right">{t("imports.loadedColumns.rows")}</TableHead>
+                  <TableHead className="text-right">{t("imports.loadedColumns.inserted")}</TableHead>
+                  <TableHead className="text-right">{t("imports.loadedColumns.skipped")}</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">{t("imports.loadedColumns.located")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

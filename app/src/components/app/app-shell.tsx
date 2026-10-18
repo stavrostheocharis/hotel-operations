@@ -28,7 +28,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {t("app.skipToContent")}
       </a>
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <TopBar
           labels={{ search: t("app.search"), searchHint: t("app.searchHint"), noResults: t("common.none"), sections: t("nav.work"), byKey }}
           jumps={jumps}

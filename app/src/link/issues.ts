@@ -1,5 +1,6 @@
 import type { LocationIndex } from "@/normalize/location-rules";
 import { TOPICS } from "@/normalize/taxonomy";
+import { recurrenceWindowDays, type PropertySettings } from "@/console/property-settings";
 import { BUILDING_SCOPED_TOPICS, daysBetween } from "./rules";
 import { LIVE_SOURCES, type CandidatePair, type LinkSignal } from "./types";
 
@@ -39,18 +40,18 @@ const SEVERITY: Record<string, IssueDraft["severity"]> = {
   breakfast_slow: "medium", room_not_cleaned: "medium", hammam_cold: "medium", food_cold: "medium",
 };
 
-const RECURRENCE_WINDOW: Record<string, number> = { plumbing: 90, hvac: 60, housekeeping: 7, fnb_service: 14, facilities: 30 };
-
 export function buildIssue(
   cluster: LinkSignal[],
   pairs: CandidatePair[],
   index: LocationIndex,
   asOf: Date,
+  /** The property's recurrence windows (settings); the built-in defaults otherwise. */
+  settings: PropertySettings | null = null,
 ): IssueDraft {
   const sorted = [...cluster].sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
   const topic = majority(sorted.map((s) => s.topic));
   const category = majority(sorted.map((s) => s.category)) ?? (topic ? TOPICS[topic]?.category ?? null : null);
-  const windowDays = RECURRENCE_WINDOW[category ?? ""] ?? 30;
+  const windowDays = recurrenceWindowDays(category, settings);
 
   // Where the cause sits.
   const rootCode = rootCauseLocation(sorted, pairs, topic, index);

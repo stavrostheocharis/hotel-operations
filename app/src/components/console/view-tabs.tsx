@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 export type ViewTab = { key: string; label: string; count?: number; href: string };
@@ -7,7 +8,7 @@ export type ViewTab = { key: string; label: string; count?: number; href: string
 /** Saved views as tabs bound to the URL: ink underline on the active one (DESIGN.md), counts in the label. */
 export function ViewTabs({ tabs, active }: { tabs: ViewTab[]; active: string }) {
   return (
-    <nav aria-label="Views" className="flex gap-1 overflow-x-auto border-b border-border">
+    <nav aria-label={t("app.views")} className="flex gap-1 overflow-x-auto border-b border-border">
       {tabs.map((tab) => {
         const on = tab.key === active;
         return (

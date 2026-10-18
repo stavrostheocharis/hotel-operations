@@ -5,7 +5,7 @@ import { fmtHours, fmtInt, fmtNum, fmtPct, guest, label, LANGUAGE, pctCell, peri
 import { buildAuditReport } from "@/audit/report";
 import type { AuditReport, Verdict } from "@/audit/types";
 import { PrintButton } from "@/components/console/print-button";
-import { t } from "@/i18n";
+import { t, tList } from "@/i18n";
 import { PageHeader } from "@/components/console/page-header";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -46,45 +46,45 @@ async function AuditContent({ searchParams }: Pick<PageProps<"/reports/audit">, 
       <PageHeader
         crumbs={[{ label: t("reports.title"), href: "/reports" }, { label: t("reports.audit") }]}
         title={`${r.property.name} · ${r.season.label}`}
-        description={`${r.season.from} to ${r.season.to} · ${fmtInt(r.volume.signalsTotal)} records · ${fmtInt(r.volume.issues)} issues, ${fmtInt(r.volume.issuesRecurring)} recurring · no person is named in this report`}
+        description={t("audit.description", { from: r.season.from, to: r.season.to, records: fmtInt(r.volume.signalsTotal), issues: fmtInt(r.volume.issues), recurring: fmtInt(r.volume.issuesRecurring) })}
         actions={
           <>
             <PrintButton />
             {/* Plain anchors: these are file downloads, not routes to prefetch. */}
             <a href={exportHref("md")} download className={buttonVariants({ variant: "ghost" })}>
-              Markdown
+              {t("reports.export.markdown")}
             </a>
             <a href={exportHref("csv")} download className={buttonVariants({ variant: "ghost" })}>
-              Winter works (CSV)
+              {t("reports.export.winterWorks")}
             </a>
             <a href={exportHref("json")} download className={buttonVariants({ variant: "ghost" })}>
-              JSON
+              {t("reports.export.json")}
             </a>
           </>
         }
       />
 
-      <Section title="Baseline" lead="The numbers the next season is measured against.">
+      <Section title={t("audit.baseline.title")} lead={t("audit.baseline.lead")}>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <Figure label="Repeats / 1,000 room-nights" value={fmtNum(r.baseline.repeatsPerThousandRoomNights, 2)} hint={`${fmtInt(r.baseline.repeats)} repeats, ${fmtInt(r.baseline.roomNights)} occupied room-nights`} />
-          <Figure label="Closures that held 30 days" value={fmtPct(r.baseline.held30Share)} hint={`${fmtInt(r.baseline.held30)} of ${fmtInt(r.baseline.closures)} closed tickets`} />
-          <Figure label="Issues reopened" value={fmtPct(r.baseline.reopenRate)} hint={`${fmtInt(r.baseline.issuesReopened)} of ${fmtInt(r.baseline.issuesWithClosure)} with a closure`} />
-          <Figure label="Median ticket to closure" value={fmtHours(r.baseline.medianHoursToResolve)} hint={`${fmtInt(r.timeToResolve.firstHalf.tickets + r.timeToResolve.secondHalf.tickets)} closed tickets`} />
+          <Figure label={t("audit.figures.repeats")} value={fmtNum(r.baseline.repeatsPerThousandRoomNights, 2)} hint={t("audit.figures.repeatsHint", { repeats: fmtInt(r.baseline.repeats), roomNights: fmtInt(r.baseline.roomNights) })} />
+          <Figure label={t("audit.figures.held")} value={fmtPct(r.baseline.held30Share)} hint={t("audit.figures.heldHint", { held: fmtInt(r.baseline.held30), closures: fmtInt(r.baseline.closures) })} />
+          <Figure label={t("audit.figures.reopened")} value={fmtPct(r.baseline.reopenRate)} hint={t("audit.figures.reopenedHint", { reopened: fmtInt(r.baseline.issuesReopened), withClosure: fmtInt(r.baseline.issuesWithClosure) })} />
+          <Figure label={t("audit.figures.median")} value={fmtHours(r.baseline.medianHoursToResolve)} hint={t("audit.figures.medianHint", { n: fmtInt(r.timeToResolve.firstHalf.tickets + r.timeToResolve.secondHalf.tickets) })} />
         </div>
       </Section>
 
       <Section
-        title="1. Recurring failures by room, building and equipment"
-        lead={`${fmtInt(r.volume.issuesRecurring)} issues came back at the same place: two or more episodes a week apart, or a reopen after a closure. Shared-plant problems are shown once, at the cause, with the rooms they reached.`}
+        title={t("audit.recurring.title")}
+        lead={t("audit.recurring.lead", { n: fmtInt(r.volume.issuesRecurring) })}
       >
         <div className="grid gap-6 lg:grid-cols-[1fr_3fr]">
           <DataTable
-            head={["Kind of place", "Issues", "Recurring"]}
+            head={[...tList("audit.recurring.byKind")]}
             rows={r.volume.byLocationKind.map((k) => [k.kind, fmtInt(k.issues), fmtInt(k.recurring)])}
             numeric={[1, 2]}
           />
           <DataTable
-            head={["Issue", "Where", "Episodes", "Reopens", "Closures", "Rooms", "Guest reports", "First → last"]}
+            head={[...tList("audit.recurring.table")]}
             rows={r.recurring.map((f) => [<IssueLink key={f.issueId} id={f.issueId} title={f.title} />, where(f), fmtInt(f.episodes), fmtInt(f.reopens), fmtInt(f.closures), fmtInt(f.roomsAffected), guest(f), period(f, tz)])}
             numeric={[2, 3, 4, 5]}
           />
@@ -92,17 +92,25 @@ async function AuditContent({ searchParams }: Pick<PageProps<"/reports/audit">, 
       </Section>
 
       <Section
-        title="2. Fixes that did not hold"
-        lead={`Of ${fmtInt(r.fixesHeld.total.closures)} tickets closed in the season, the same problem was reported again at the same place within 7 days for ${fmtInt(r.fixesHeld.total.back7)} (${fmtPct(share(r.fixesHeld.total.back7, r.fixesHeld.total.closures))}), within 30 days for ${fmtInt(r.fixesHeld.total.back30)} (${fmtPct(share(r.fixesHeld.total.back30, r.fixesHeld.total.closures))}) and within 90 days for ${fmtInt(r.fixesHeld.total.back90)} (${fmtPct(share(r.fixesHeld.total.back90, r.fixesHeld.total.closures))}). By category and by month; not by technician.`}
+        title={t("audit.notHeld.title")}
+        lead={t("audit.notHeld.lead", {
+          closures: fmtInt(r.fixesHeld.total.closures),
+          back7: fmtInt(r.fixesHeld.total.back7),
+          back7Share: fmtPct(share(r.fixesHeld.total.back7, r.fixesHeld.total.closures)),
+          back30: fmtInt(r.fixesHeld.total.back30),
+          back30Share: fmtPct(share(r.fixesHeld.total.back30, r.fixesHeld.total.closures)),
+          back90: fmtInt(r.fixesHeld.total.back90),
+          back90Share: fmtPct(share(r.fixesHeld.total.back90, r.fixesHeld.total.closures)),
+        })}
       >
         <div className="grid gap-6 lg:grid-cols-2">
           <DataTable
-            head={["Category", "Closures", "Back in 7 d", "Back in 30 d", "Back in 90 d"]}
+            head={[...tList("audit.notHeld.byCategory")]}
             rows={r.fixesHeld.byCategory.map((c) => [label(c.category), fmtInt(c.closures), pctCell(c.back7, c.closures), pctCell(c.back30, c.closures), pctCell(c.back90, c.closures)])}
             numeric={[1, 2, 3, 4]}
           />
           <DataTable
-            head={["Month", "Closures", "Back in 7 d", "Back in 30 d", "Back in 90 d"]}
+            head={[...tList("audit.notHeld.byMonth")]}
             rows={r.fixesHeld.byMonth.map((m) => [m.month, fmtInt(m.closures), pctCell(m.back7, m.closures), pctCell(m.back30, m.closures), pctCell(m.back90, m.closures)])}
             numeric={[1, 2, 3, 4]}
           />
@@ -110,43 +118,43 @@ async function AuditContent({ searchParams }: Pick<PageProps<"/reports/audit">, 
       </Section>
 
       <Section
-        title="3. Time to resolve"
-        lead={`Median ${fmtHours(r.timeToResolve.firstHalf.medianHours)} in the first half of the season (${fmtInt(r.timeToResolve.firstHalf.tickets)} tickets) against ${fmtHours(r.timeToResolve.secondHalf.medianHours)} in the second half (${fmtInt(r.timeToResolve.secondHalf.tickets)} tickets).`}
+        title={t("audit.timeToResolve.title")}
+        lead={t("audit.timeToResolve.lead", { firstMedian: fmtHours(r.timeToResolve.firstHalf.medianHours), firstTickets: fmtInt(r.timeToResolve.firstHalf.tickets), secondMedian: fmtHours(r.timeToResolve.secondHalf.medianHours), secondTickets: fmtInt(r.timeToResolve.secondHalf.tickets) })}
       >
         <div className="grid gap-6 lg:grid-cols-2">
           <DataTable
-            head={["Category", "Closed tickets", "Median", "90th percentile"]}
+            head={[...tList("audit.timeToResolve.byCategory")]}
             rows={r.timeToResolve.byCategory.map((c) => [label(c.category), fmtInt(c.tickets), fmtHours(c.medianHours), fmtHours(c.p90Hours)])}
             numeric={[1, 2, 3]}
           />
           <DataTable
-            head={["Month", "Closed tickets", "Median", "90th percentile"]}
+            head={[...tList("audit.timeToResolve.byMonth")]}
             rows={r.timeToResolve.byMonth.map((m) => [m.month, fmtInt(m.tickets), fmtHours(m.medianHours), fmtHours(m.p90Hours)])}
             numeric={[1, 2, 3]}
           />
         </div>
       </Section>
 
-      <Section title="4. Reviews and surveys tied to operational causes">
+      <Section title={t("audit.guestVoice.title")}>
         <div className="grid gap-6 lg:grid-cols-[2fr_3fr]">
           <div className="flex flex-col gap-6">
             <DataTable
-              head={["Source", "Naming a problem", "Linked to an issue", "… with a ticket"]}
+              head={[...tList("audit.guestVoice.bySource")]}
               rows={r.guestVoice.bySource.map((s) => [SOURCE[s.source] ?? s.source, fmtInt(s.withTopic), pctCell(s.linked, s.withTopic), pctCell(s.withTicket, s.withTopic)])}
               numeric={[1, 2, 3]}
             />
             <SurveyCompare r={r} />
           </div>
           <DataTable
-            caption="What guests write about most in surveys and reviews"
-            head={["Topic", "Category", "Mentions", "With a ticket", "Score /10"]}
+            caption={t("audit.guestVoice.byTopicCaption")}
+            head={[...tList("audit.guestVoice.byTopic")]}
             rows={r.guestVoice.byTopic.map((t) => [label(t.topic), label(t.category), fmtInt(t.mentions), pctCell(t.withTicket, t.mentions), fmtNum(t.avgScore, 1)])}
             numeric={[2, 3, 4]}
           />
         </div>
         {r.guestVoice.silent.length ? (
           <div className="flex flex-col gap-3">
-            <h3 className="text-title-sm text-foreground">Problems guests write about that rarely became a ticket</h3>
+            <h3 className="text-title-sm text-foreground">{t("audit.guestVoice.silentTitle")}</h3>
             <ul className="grid gap-4 md:grid-cols-2">
               {r.guestVoice.silent.map((s) => (
                 <li key={s.topic} className="flex flex-col gap-1 rounded-card bg-secondary p-4">
@@ -154,7 +162,7 @@ async function AuditContent({ searchParams }: Pick<PageProps<"/reports/audit">, 
                     {label(s.topic)} <span className="text-caption text-muted-foreground">· {label(s.category)}</span>
                   </span>
                   <span className="text-caption text-muted-foreground">
-                    {fmtInt(s.mentions)} mentions, {fmtInt(s.withTicket)} with a ticket
+                    {t("audit.guestVoice.mentions", { mentions: fmtInt(s.mentions), withTicket: fmtInt(s.withTicket) })}
                   </span>
                   {s.examples.map((e) => (
                     <p key={e.date + e.text} className="text-caption text-muted-soft">
@@ -168,18 +176,18 @@ async function AuditContent({ searchParams }: Pick<PageProps<"/reports/audit">, 
         ) : null}
       </Section>
 
-      <Section title="5. Winter-works list" lead="Ranked by recurrence × (1 + guest reports) × (1 + repeat tickets). Each evidence line is written to be pasted into a budget request.">
+      <Section title={t("audit.winterWorks.title")} lead={t("audit.winterWorks.lead")}>
         <DataTable
-          head={["#", "Issue", "Where", "Priority", "Evidence"]}
+          head={[...tList("audit.winterWorks.table")]}
           rows={r.winterWorks.map((w) => [String(w.rank), <IssueLink key={w.issueId} id={w.issueId} title={w.title} />, where(w), fmtInt(Math.round(w.priority)), w.evidence])}
           numeric={[0, 3]}
         />
       </Section>
 
-      <Section title="6. Records assessment" lead="What the hotel's tools capture well, what they do not, and five changes to logging practice for next season.">
+      <Section title={t("audit.records.title")} lead={t("audit.records.lead")}>
         <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
           <DataTable
-            head={["Measure", "Value", "Verdict", "Note"]}
+            head={[...tList("audit.records.table")]}
             rows={r.records.metrics.map((m) => [
               m.label,
               m.share === null ? fmtInt(m.count) : `${fmtPct(m.share)} (${fmtInt(m.count)} of ${fmtInt(m.total)})`,
@@ -191,7 +199,7 @@ async function AuditContent({ searchParams }: Pick<PageProps<"/reports/audit">, 
           />
           <Card>
             <CardHeader>
-              <CardTitle>Five changes for next season</CardTitle>
+              <CardTitle>{t("audit.records.fiveChanges")}</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
               <ol className="flex list-decimal flex-col gap-2 pl-5 text-body text-foreground">
@@ -204,13 +212,13 @@ async function AuditContent({ searchParams }: Pick<PageProps<"/reports/audit">, 
         </div>
       </Section>
 
-      <Section title="Volume">
+      <Section title={t("audit.volume.title")}>
         <div className="grid gap-6 md:grid-cols-2">
-          <DataTable head={["Source", "Records"]} rows={r.volume.bySource.map((s) => [SOURCE[s.source] ?? s.source, fmtInt(s.count)])} numeric={[1]} />
-          <DataTable head={["Language", "Records with text"]} rows={r.volume.byLanguage.map((l) => [LANGUAGE[l.language] ?? l.language, fmtInt(l.count)])} numeric={[1]} />
+          <DataTable head={[...tList("audit.volume.bySource")]} rows={r.volume.bySource.map((s) => [SOURCE[s.source] ?? s.source, fmtInt(s.count)])} numeric={[1]} />
+          <DataTable head={[...tList("audit.volume.byLanguage")]} rows={r.volume.byLanguage.map((l) => [LANGUAGE[l.language] ?? l.language, fmtInt(l.count)])} numeric={[1]} />
         </div>
         <p className="text-caption text-muted-foreground">
-          {fmtInt(r.volume.roomNights)} occupied room-nights in the season · generated {r.generatedAt.slice(0, 10)} · {r.version}
+          {t("audit.volume.generated", { roomNights: fmtInt(r.volume.roomNights), date: r.generatedAt.slice(0, 10), version: r.version })}
         </p>
       </Section>
     </article>
@@ -264,7 +272,7 @@ function DataTable({ head, rows, numeric = [], caption }: { head: string[]; rows
             {rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={head.length} className="text-muted-foreground">
-                  nothing in this period
+                  {t("audit.nothing")}
                 </TableCell>
               </TableRow>
             ) : null}
@@ -302,9 +310,9 @@ function SurveyCompare({ r }: { r: AuditReport }) {
   const row = (name: string, g: typeof s.others) => [name, fmtInt(g.responses), fmtNum(g.avgOverall, 1), fmtNum(g.avgNps, 1), fmtPct(g.recommendShare)];
   return (
     <DataTable
-      caption="Survey scores, guests whose stay had a logged issue against everyone else"
-      head={["Guests", "Responses", "Overall /10", "NPS", "Would recommend"]}
-      rows={[row("Stay linked to an issue", s.withLinkedIssue), row("Everyone else", s.others)]}
+      caption={t("audit.guestVoice.surveysCaption")}
+      head={[...tList("audit.guestVoice.surveys")]}
+      rows={[row(t("audit.guestVoice.withIssue"), s.withLinkedIssue), row(t("audit.guestVoice.others"), s.others)]}
       numeric={[1, 2, 3, 4]}
     />
   );

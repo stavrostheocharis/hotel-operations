@@ -99,7 +99,8 @@ has two or more signals, or when its single signal is an actionable record
 - **Status**: no closure → `detected`; evidence after the last closure →
   `reopened`; otherwise `resolved`, or `closed_unverified` once the category's
   recurrence window (90 days plumbing, 60 hvac, 7 housekeeping, 14 F&B, 30
-  default) has passed without evidence. An `outcome` of kind `recurred`
+  default; a property overrides them in Settings → Categories, stored in
+  `properties.settings`, see `docs/app.md`) has passed without evidence. An `outcome` of kind `recurred`
   (strength 0) or `no_recurrence` (strength 1) is written accordingly;
   `verified` (strength ≥ 2) needs a guest confirmation or staff evidence,
   which no export provides.

@@ -19,6 +19,7 @@ import { getIssueContext, listAssignableUsers } from "@/console/issue-detail";
 import { listIssueVerifications } from "@/console/verification";
 import { DoneSheet } from "@/components/verifications/done-sheet";
 import { getIssue, type IssueDetail, type IssueSignal } from "@/console/queries";
+import { defaultDepartmentFor, getPropertyProfile } from "@/console/property-settings";
 import { getAppDb, schema } from "@/db";
 import { label, t } from "@/i18n";
 import { CATEGORIES } from "@/normalize/taxonomy";
@@ -66,7 +67,9 @@ async function IssueContent({ params }: Pick<PageProps<"/issues/[id]">, "params"
     decide: viewer.can("links.decide"),
   };
   const departments: Option[] = schema.department.enumValues.map((d) => ({ value: d, label: label("user.department", d) }));
-  const categories: Option[] = CATEGORIES.map((c) => ({ value: c, label: c.replace(/_/g, " ") }));
+  const categories: Option[] = CATEGORIES.map((c) => ({ value: c, label: label("category", c) }));
+  const profile = await getPropertyProfile(db, viewer.tenant, viewer.property.id);
+  const defaultDepartment = issue.department ?? defaultDepartmentFor(issue.category, profile?.settings);
   const severities: Option[] = schema.issueSeverity.enumValues.map((s) => ({ value: s, label: label("severity", s) }));
   const statuses: Option[] = schema.issueStatus.enumValues.map((s) => ({ value: s, label: label("status", s) }));
   const closures = issue.actions.filter((a) => a.details.closed_at);
@@ -91,7 +94,7 @@ async function IssueContent({ params }: Pick<PageProps<"/issues/[id]">, "params"
         actions={
           can.assign || can.status || can.verify || can.edit ? (
             <WorkflowActions
-              issue={{ id: issue.id, title: issue.title, status: issue.status, category: issue.category, severity: issue.severity, department: issue.department, ownerUserId: issue.ownerUserId, ownerName: issue.ownerName }}
+              issue={{ id: issue.id, title: issue.title, status: issue.status, category: issue.category, severity: issue.severity, department: defaultDepartment, ownerUserId: issue.ownerUserId, ownerName: issue.ownerName }}
               users={users}
               departments={departments}
               categories={categories}
@@ -119,7 +122,7 @@ async function IssueContent({ params }: Pick<PageProps<"/issues/[id]">, "params"
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <Tabs defaultValue="evidence" className="min-w-0">
-          <TabsList variant="line">
+          <TabsList className="max-w-full overflow-x-auto" variant="line">
             <TabsTrigger value="evidence">
               {t("issue.tabs.evidence")} · {issue.signals.length}
             </TabsTrigger>

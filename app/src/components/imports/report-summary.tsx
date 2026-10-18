@@ -46,9 +46,9 @@ export function ReportSummary({ report, mapping }: { report: RealityReport; mapp
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Dataset</TableHead>
-                  <TableHead className="text-right">Rows</TableHead>
-                  <TableHead className="hidden md:table-cell">Period</TableHead>
+                  <TableHead>{t("imports.check.dataset")}</TableHead>
+                  <TableHead className="text-right">{t("imports.check.rows")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("imports.check.period")}</TableHead>
                   <TableHead>{t("imports.batch.mapping")}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -68,7 +68,7 @@ export function ReportSummary({ report, mapping }: { report: RealityReport; mapp
                       <TableCell className="hidden text-caption text-muted-foreground md:table-cell">{d.dateRange ? `${d.dateRange.from} → ${d.dateRange.to}` : "–"}</TableCell>
                       <TableCell className="whitespace-normal text-caption">
                         {d.status !== "received" ? (
-                          <Badge variant="secondary">missing</Badge>
+                          <Badge variant="secondary">{t("imports.check.missing")}</Badge>
                         ) : missing.length ? (
                           <span className="text-critical">{t("imports.batch.missing", { fields: missing.join(", ") })}</span>
                         ) : (
@@ -85,7 +85,7 @@ export function ReportSummary({ report, mapping }: { report: RealityReport; mapp
         {received.length === 0 ? null : (
           <Card>
             <CardHeader>
-              <CardTitle>Scorecard</CardTitle>
+              <CardTitle>{t("imports.check.scorecard")}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -128,7 +128,7 @@ export function ReportSummary({ report, mapping }: { report: RealityReport; mapp
         {report.unread.length ? (
           <Card>
             <CardHeader>
-              <CardTitle>Not read</CardTitle>
+              <CardTitle>{t("imports.check.unread")}</CardTitle>
             </CardHeader>
             <CardContent>
               <ul className="flex flex-col gap-1 text-caption text-muted-foreground">

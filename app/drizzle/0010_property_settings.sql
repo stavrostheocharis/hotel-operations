@@ -1,0 +1,1 @@
+ALTER TABLE "properties" ADD COLUMN "settings" jsonb DEFAULT '{}'::jsonb NOT NULL;

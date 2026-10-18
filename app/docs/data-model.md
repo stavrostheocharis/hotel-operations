@@ -50,6 +50,9 @@ erDiagram
   properties ||--o{ events : logs
   properties ||--o{ ai_suggestions : audits
   properties ||--o{ occupancy_daily : measures
+  properties ||--o{ verification_tasks : schedules
+  properties ||--o{ jobs : runs
+  properties ||--o{ import_batches : receives
 
   signals {
     uuid id PK
@@ -211,6 +214,19 @@ the lifecycle rule above outranks any decision taken before the evidence.
 `issue.edited`), which are append-only. An issue the linker could not match
 to any cluster after a person touched it is kept with `superseded_at` and
 `superseded_by_issue_id` rather than deleted.
+
+### Property settings, jobs and imports
+
+`properties.settings` (jsonb, default `{}`) holds what a property tunes
+without code: recurrence windows per category, default departments, the
+expected import time (`docs/app.md`). `jobs` is one row per background run
+(kind, status, params, progress, log, result, heartbeat; one queued or
+running job per kind and property, `docs/jobs.md`); `import_batches` is one
+delivery of a client's exports with its files, the reality-check report and
+verdict, the column mapping and the load counts (`docs/imports.md`).
+Signals carry `ingest_batch_id`, `mapped` (the canonical record keyed by
+catalogue field) and `locked_fields` (what a person set by hand, which the
+normaliser leaves alone).
 
 ## Tenant context (row-level security)
 

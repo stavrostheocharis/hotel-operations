@@ -1,9 +1,8 @@
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { requestFeature } from "@/console/placeholders";
 import { t, tList, type TKey } from "@/i18n";
 import { PageHeader } from "./page-header";
+import { RequestFeatureButton } from "./request-feature-button";
 
 /**
  * A later phase of the product (staff copilot, guest QR): what it will do,
@@ -23,12 +22,7 @@ export function PhasePlaceholder({ section }: { section: "copilot" | "guestQr" }
             ))}
           </ul>
           <p className="text-body text-muted-foreground">{t(k("needs"))}</p>
-          <form action={requestFeature}>
-            <input type="hidden" name="feature" value={section} />
-            <Button type="submit" variant="secondary">
-              {t(k("cta"))}
-            </Button>
-          </form>
+          <RequestFeatureButton feature={section} text={t(k("cta"))} />
         </CardContent>
       </Card>
     </div>
