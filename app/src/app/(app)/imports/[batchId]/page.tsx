@@ -21,6 +21,8 @@ import { getAppDb } from "@/db";
 import { label, t } from "@/i18n";
 import { getJob } from "@/jobs/queries";
 import type { JobView } from "@/jobs/types";
+import { canSee } from "@/auth/screens";
+import { NotAllowed } from "@/components/console/not-allowed";
 
 export const metadata = { title: t("imports.batch.title") };
 
@@ -55,6 +57,7 @@ function stepOf(batch: BatchDetail, job: JobView | null): { current: StepKey | "
 async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">) {
   const { batchId } = await params;
   const viewer = await requireViewer();
+  if (!canSee(viewer.roleAt(), "imports")) return <NotAllowed />;
   const db = getAppDb();
   const batch = await getBatch(db, viewer.scoped, batchId);
   if (!batch) notFound();
@@ -77,7 +80,7 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
           <>
             {t("imports.batch.files", { n: batch.files.length, size: fmtBytes(batch.bytes) })}
             {batch.createdByName ? ` · ${t("jobs.by", { name: batch.createdByName })}` : ""}
-            {batch.source === "folder" ? ` · ${batch.dir}` : ""}
+            {batch.source === "folder" ? ` · ${batch.dir.split("/").filter(Boolean).at(-1) ?? ""}` : ""}
           </>
         }
         actions={
@@ -169,7 +172,7 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
           {canImport && (batch.status === "checked" || batch.status === "failed") && !jobActive ? (
             <Card>
               <CardContent>
-                <LoadButton batchId={batch.id} verdict={batch.verdict} canOverride={viewer.can("settings.users")} modelAvailable={Boolean(process.env.OPENAI_API_KEY)} />
+                <LoadButton batchId={batch.id} verdict={batch.verdict} canOverride={viewer.can("imports.override")} modelAvailable={Boolean(process.env.OPENAI_API_KEY)} />
               </CardContent>
             </Card>
           ) : null}

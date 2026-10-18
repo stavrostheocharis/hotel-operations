@@ -74,8 +74,6 @@ async function Queue({ searchParams }: Pick<PageProps<"/exceptions">, "searchPar
   const departments = schema.department.enumValues.map((d) => ({ value: d, label: label("user.department", d) }));
   const categories = CATEGORIES.map((c) => ({ value: c, label: c.replace(/_/g, " ") }));
   const sorts = ISSUE_SORTS.map((s) => ({ value: s, label: label("exceptions.sort", s) }));
-  const canAssign = viewer.can("issue.assign");
-  const canSchedule = viewer.can("verification.schedule");
 
   return (
     <>
@@ -139,8 +137,8 @@ async function Queue({ searchParams }: Pick<PageProps<"/exceptions">, "searchPar
                         issue={{ id: r.id, title: r.title, status: r.status, category: r.category, severity: r.severity, department: r.department, ownerUserId: r.ownerUserId, ownerName: r.ownerName }}
                         users={users}
                         departments={departments}
-                        canAssign={canAssign}
-                        canSchedule={canSchedule}
+                        canAssign={viewer.can("issue.assign", { department: r.department as never, ownerUserId: r.ownerUserId })}
+                        canSchedule={viewer.can("verification.schedule", { department: r.department as never, ownerUserId: r.ownerUserId })}
                       />
                     </TableCell>
                   </TableRow>

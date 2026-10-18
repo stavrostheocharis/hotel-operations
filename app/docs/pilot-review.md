@@ -145,6 +145,9 @@ Roles and gating
   errors), the memo and the audit JSON by URL. `docs/auth.md` says every
   role sees every screen; the nav says otherwise. Pick one and enforce it
   on the page.
+  **Fixed on `pilot-before`:** the sidebar map is the boundary
+  (`canSee`), every gated page and route enforces it, and `docs/auth.md`
+  now says who sees what.
 - Read-only and non-engineering department heads get full forms, just
   disabled; Exceptions shows "Assign…" on rows the server will refuse
   (`exceptions/page.tsx:77` checks without department context); the Users
@@ -152,12 +155,24 @@ Roles and gating
   anyway" is gated on `settings.users` while the copy says group admin
   only; "Import the demo folder" appears for a real GM whenever `data/out`
   exists on the server, with no confirmation.
+  **Fixed on `pilot-before`:** read-only summaries instead of disabled
+  forms, tabs only for what the role may open, Assign… per row with the
+  department and owner the server checks, no self-actions in Users, a
+  group-admin-only `imports.override`, the placeholder button only for
+  roles that may write; the demo-folder card already depends on
+  `DATA_DIR` and its copy no longer mentions the generator.
 - A GM can administer every user in the group, not only their property
   (`loadTarget` by id under group-scoped RLS); matters only with more than
   one property. No self-service password change, so admins know every
   password.
+  **Fixed on `pilot-before`:** a GM sees and acts on this property's
+  members and the group admins only (`userInScope`); "Change password…"
+  in the user menu.
 - Raw `Error.message` strings and absolute server paths reach toasts and
   pages for every role.
+  **Fixed on `pilot-before`:** library errors are logged and replaced by
+  one sentence (`failureMessage`); batch pages show the folder's name,
+  not its path.
 
 Dead ends in the UI
 

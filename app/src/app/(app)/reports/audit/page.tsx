@@ -14,6 +14,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getCurrentTenant } from "@/console/tenant";
 import { getAppDb } from "@/db";
+import { canSee } from "@/auth/screens";
+import { NotAllowed } from "@/components/console/not-allowed";
+import { requireViewer } from "@/auth/viewer";
 
 export const metadata = { title: "Season audit" };
 
@@ -36,6 +39,8 @@ async function AuditContent({ searchParams }: Pick<PageProps<"/reports/audit">, 
   const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
   const from = valid(one(params.from));
   const to = valid(one(params.to));
+  const viewer = await requireViewer();
+  if (!canSee(viewer.roleAt(), "reports")) return <NotAllowed />;
   const tenant = await getCurrentTenant();
   const r = await buildAuditReport(getAppDb(), tenant, { from, to });
   const tz = r.property.timezone;

@@ -18,6 +18,7 @@ import { getTodayDigest, type IssueBrief } from "@/console/today";
 import { getAppDb, schema } from "@/db";
 import { label, t } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { canSee } from "@/auth/screens";
 
 export const metadata = { title: t("today.title") };
 
@@ -61,9 +62,13 @@ async function Today({ searchParams }: Pick<PageProps<"/today">, "searchParams">
         title={t("today.title")}
         description={
           <>
-            <Link href="/signals" className="hover:underline">
-              {strip}
-            </Link>
+            {canSee(viewer.roleAt(), "signals") ? (
+              <Link href="/signals" className="hover:underline">
+                {strip}
+              </Link>
+            ) : (
+              <span>{strip}</span>
+            )}
             {digest.lastImportAt ? <span className="text-muted-soft"> · {t("today.lastImport", { when: fmtDateTime(digest.lastImportAt, tz) })}</span> : null}
           </>
         }
@@ -106,7 +111,7 @@ async function Today({ searchParams }: Pick<PageProps<"/today">, "searchParams">
             />
           ))}
         </Block>
-        <Block title={t("today.due")} total={digest.verificationsDue.total} seeAll="/verifications" empty={t("today.emptyDue")}>
+        <Block title={t("today.due")} total={digest.verificationsDue.total} seeAll={canSee(viewer.roleAt(), "verifications") ? "/verifications" : undefined} empty={t("today.emptyDue")}>
           {digest.verificationsDue.rows.map((v) => {
             const overdueDays = Math.floor((now.getTime() - v.dueAt.getTime()) / 86_400_000);
             return (
@@ -148,7 +153,7 @@ function Chip({ href, active, children }: { href: string; active: boolean; child
   );
 }
 
-function Block({ title, total, seeAll, empty, children }: { title: string; total: number; seeAll: string; empty: string; children: React.ReactNode }) {
+function Block({ title, total, seeAll, empty, children }: { title: string; total: number; seeAll?: string; empty: string; children: React.ReactNode }) {
   return (
     <Card className="flex flex-col">
       <CardHeader>
@@ -165,7 +170,7 @@ function Block({ title, total, seeAll, empty, children }: { title: string; total
         ) : (
           <ul className="flex flex-col divide-y divide-border">{children}</ul>
         )}
-        {total > 5 ? (
+        {total > 5 && seeAll ? (
           <div className="mt-3">
             <Button variant="ghost" render={<Link href={seeAll} />}>
               {t("today.seeAll", { n: total })} →

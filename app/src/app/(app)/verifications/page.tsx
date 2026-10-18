@@ -17,6 +17,8 @@ import { countVerificationViews, listVerifications, VERIFICATION_VIEWS, type Ver
 import { getAppDb } from "@/db";
 import { label, t } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { canSee } from "@/auth/screens";
+import { NotAllowed } from "@/components/console/not-allowed";
 
 export const metadata = { title: t("verifications.title") };
 
@@ -42,6 +44,7 @@ async function List({ searchParams }: Pick<PageProps<"/verifications">, "searchP
   const view = (VERIFICATION_VIEWS.includes(one(params.view) as VerificationView) ? one(params.view) : "due") as VerificationView;
   const page = Math.max(1, Number(one(params.page) ?? 1) || 1);
   const viewer = await requireViewer();
+  if (!canSee(viewer.roleAt(), "verifications")) return <NotAllowed />;
   const db = getAppDb();
   const tz = viewer.property.timezone;
   const base = { timeZone: tz, userId: viewer.user.id };

@@ -23,6 +23,8 @@ import { getAppDb, schema } from "@/db";
 import { label, t } from "@/i18n";
 import { CATEGORIES } from "@/normalize/taxonomy";
 import { cn } from "@/lib/utils";
+import { canSee } from "@/auth/screens";
+import { NotAllowed } from "@/components/console/not-allowed";
 
 export const metadata = { title: t("signals.title") };
 
@@ -58,6 +60,7 @@ async function Inbox({ searchParams }: Pick<PageProps<"/signals">, "searchParams
   const record = one(params.record);
 
   const viewer = await requireViewer();
+  if (!canSee(viewer.roleAt(), "signals")) return <NotAllowed />;
   const db = getAppDb();
   const tz = viewer.property.timezone;
   const filters = { timeZone: tz, q, source, category, from, to, nonEnglish };

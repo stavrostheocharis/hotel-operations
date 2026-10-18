@@ -2,10 +2,12 @@ import { requireViewer } from "@/auth/viewer";
 import { getBatch } from "@/console/imports";
 import { getAppDb } from "@/db";
 import { renderMemo } from "@/reality";
+import { canSee } from "@/auth/screens";
 
 /** The reality-check memo of a batch, as the Markdown file the CLI writes. */
 export async function GET(_request: Request, ctx: { params: Promise<{ batchId: string }> }) {
   const viewer = await requireViewer();
+  if (!canSee(viewer.roleAt(), "imports")) return new Response("forbidden", { status: 403 });
   const { batchId } = await ctx.params;
   const batch = await getBatch(getAppDb(), viewer.scoped, batchId);
   if (!batch?.report) return new Response("not found", { status: 404 });

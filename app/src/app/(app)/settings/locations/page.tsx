@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/console/empty-state";
 import { PageHeader } from "@/components/console/page-header";
 import { PageSkeleton } from "@/components/console/page-skeleton";
 import { AddLocationDialog, AliasEditor, MapSpelling, ServesDialog, type PlaceOption } from "@/components/settings/location-tools";
-import { SettingsTabs } from "@/components/settings/settings-tabs";
+import { SettingsTabs, visibleSettingsTabs } from "@/components/settings/settings-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -16,6 +16,8 @@ import { getLocationTree, listUnresolvedSpellings, type TreeNode } from "@/conso
 import { getAppDb } from "@/db";
 import { label, t } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { canSee } from "@/auth/screens";
+import { NotAllowed } from "@/components/console/not-allowed";
 
 export const metadata = { title: t("settings.tabs.locations") };
 
@@ -27,7 +29,6 @@ export default function SettingsLocationsPage(props: PageProps<"/settings/locati
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("settings.title")} description={t("settings.locations.question")} />
-      <SettingsTabs active="locations" />
       <Suspense fallback={<PageSkeleton variant="table" />}>
         <Body searchParams={props.searchParams} />
       </Suspense>
@@ -42,6 +43,7 @@ async function Body({ searchParams }: Pick<PageProps<"/settings/locations">, "se
   const kind = (KINDS.includes(one(sp.kind) as Kind) ? one(sp.kind) : "room") as Kind;
   const q = (one(sp.q) ?? "").trim().toLowerCase();
   const viewer = await requireViewer();
+  if (!canSee(viewer.roleAt(), "settings")) return <NotAllowed />;
   const db = getAppDb();
   const canEdit = viewer.can("settings.locations");
   const tree = await getLocationTree(db, viewer.scoped);
@@ -55,6 +57,7 @@ async function Body({ searchParams }: Pick<PageProps<"/settings/locations">, "se
 
   return (
     <>
+      <SettingsTabs active="locations" visible={visibleSettingsTabs(viewer)} />
       <div className="flex flex-wrap items-center gap-2">
         {KINDS.map((k) => (
           <Link

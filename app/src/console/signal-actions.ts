@@ -3,13 +3,14 @@
 import { and, eq, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
-import { assertCan, AuthorizationError, type Department } from "@/auth/permissions";
+import { assertCan, type Department } from "@/auth/permissions";
 import { requireViewer } from "@/auth/viewer";
 import { getAppDb, schema, withTenant } from "@/db";
 import { t } from "@/i18n";
 import { CATEGORIES, TOPICS } from "@/normalize/taxonomy";
 import type { ActionResult } from "./issue-actions";
 import { searchIssues, type IssueMatch } from "./signals";
+import { failureMessage } from "./action-errors";
 
 /**
  * What a supervisor does to a record from the inbox: fix its place or its
@@ -28,8 +29,7 @@ async function run(fn: () => Promise<string>): Promise<ActionResult> {
     refresh();
     return { ok: true, message, at: Date.now() };
   } catch (err) {
-    if (err instanceof AuthorizationError) return { ok: false, message: t("common.notAllowed"), at: Date.now() };
-    return { ok: false, message: err instanceof Error ? err.message : String(err), at: Date.now() };
+    return { ok: false, message: failureMessage(err), at: Date.now() };
   }
 }
 

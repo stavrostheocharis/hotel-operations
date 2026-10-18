@@ -14,6 +14,8 @@ import { buildMonthlyReport, type CategoryRow, type MonthRow } from "@/console/r
 import { getAppDb } from "@/db";
 import { label, t } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { canSee } from "@/auth/screens";
+import { NotAllowed } from "@/components/console/not-allowed";
 
 export const metadata = { title: t("reports.monthly") };
 
@@ -35,6 +37,7 @@ async function Monthly({ searchParams }: Pick<PageProps<"/reports/monthly">, "se
   const from = valid(one(params.from));
   const to = valid(one(params.to));
   const viewer = await requireViewer();
+  if (!canSee(viewer.roleAt(), "reports")) return <NotAllowed />;
   const r = await buildMonthlyReport(getAppDb(), viewer.scoped, { from, to });
   const exportHref = (format: string) => `/reports/monthly/export?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}), format })}`;
   const monthName = (m: string) => new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric" }).format(new Date(`${m}-01T12:00:00Z`));

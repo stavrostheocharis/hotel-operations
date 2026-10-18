@@ -25,7 +25,17 @@ export type Capability =
   | "jobs.run"
   | "settings.property"
   | "settings.locations"
-  | "settings.users";
+  | "settings.users"
+  /** Open Settings at all (property and categories read-only for an engineering head). */
+  | "settings.view"
+  /** See the users list. */
+  | "users.view"
+  /** See the imports screens and job progress. */
+  | "imports.view"
+  /** Load a batch the reality check said to stop. */
+  | "imports.override"
+  /** "Tell us you want this early" on the placeholders. */
+  | "feature.request";
 
 /** Context for the capabilities that depend on whose thing it is. */
 export type CapabilityContext = {
@@ -79,6 +89,15 @@ export function can(actor: Actor, cap: Capability, ctx: CapabilityContext = {}):
     case "settings.users":
       if (role === "group_admin") return true;
       return role === "gm" && ctx.targetRole !== "group_admin";
+    case "settings.view":
+      return manager || (role === "dept_head" && actor.department === "engineering");
+    case "users.view":
+    case "imports.view":
+      return manager;
+    case "imports.override":
+      return role === "group_admin";
+    case "feature.request":
+      return true;
   }
 }
 

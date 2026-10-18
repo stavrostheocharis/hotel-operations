@@ -10,6 +10,7 @@ export async function requestFeature(_prev: ActionResult | null, formData: FormD
   const feature = String(formData.get("feature") ?? "");
   if (!["copilot", "guestQr"].includes(feature)) return { ok: false, message: "unknown feature", at: Date.now() };
   const viewer = await requireViewer();
+  if (!viewer.can("feature.request")) return { ok: false, message: t("common.notAllowed"), at: Date.now() };
   await withTenant(getAppDb(), viewer.scoped, (tx) =>
     tx.insert(schema.events).values({
       groupId: viewer.scoped.groupId,

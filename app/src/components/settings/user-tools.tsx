@@ -104,7 +104,7 @@ function RoleFields({ roles, departments, role, setRole, department, setDepartme
 type Kind = "role" | "password" | null;
 
 /** The row menu: change role, reset password, access here, deactivate. */
-export function UserMenu({ user, roles, departments, canGrant }: { user: UserRow; roles: Option[]; departments: Option[]; canGrant: boolean }) {
+export function UserMenu({ user, roles, departments }: { user: UserRow; roles: Option[]; departments: Option[] }) {
   const [open, setOpen] = useState<Kind>(null);
   const [role, setRole] = useState<string>(user.role);
   const [department, setDepartment] = useState<string>(user.department ?? "none");
@@ -133,7 +133,6 @@ export function UserMenu({ user, roles, departments, canGrant }: { user: UserRow
           <DropdownMenuGroup>
             {groupWide ? null : (
               <DropdownMenuItem
-                disabled={!canGrant}
                 onClick={() => {
                   const fd = new FormData();
                   fd.set("userId", user.id);

@@ -14,14 +14,14 @@ import { t } from "@/i18n";
 export type CategoryRowInput = { category: string; label: string; windowDays: number; department: string | null };
 
 /** One row per category: the window in days and the default department; one Save for all. */
-export function CategoriesForm({ rows, departments, readOnly }: { rows: CategoryRowInput[]; departments: { value: string; label: string }[]; readOnly: boolean }) {
+export function CategoriesForm({ rows, departments }: { rows: CategoryRowInput[]; departments: { value: string; label: string }[] }) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(updateCategoriesAction, null);
   useActionToast(state);
   return (
     <form action={action} className="flex flex-col gap-4">
       <Card>
         <CardContent className="p-0">
-          <fieldset disabled={readOnly || pending} className="contents">
+          <fieldset disabled={pending} className="contents">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -54,13 +54,11 @@ export function CategoriesForm({ rows, departments, readOnly }: { rows: Category
           </fieldset>
         </CardContent>
       </Card>
-      {readOnly ? null : (
-        <div className="flex justify-end">
-          <Button type="submit" disabled={pending}>
-            {t("settings.categories.save")}
-          </Button>
-        </div>
-      )}
+      <div className="flex justify-end">
+        <Button type="submit" disabled={pending}>
+          {t("settings.categories.save")}
+        </Button>
+      </div>
     </form>
   );
 }

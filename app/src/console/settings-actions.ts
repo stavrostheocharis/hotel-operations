@@ -10,7 +10,8 @@ import { t } from "@/i18n";
 import { CATEGORIES, type Category } from "@/normalize/taxonomy";
 import type { ActionResult } from "./issue-actions";
 import { parseSettings, type Department, type PropertySettings } from "./property-settings";
-import { isTimezone } from "./settings";
+import { isTimezone, userInScope } from "./settings";
+import { failureMessage } from "./action-errors";
 
 /**
  * Settings → Property, Categories, Users. Every action re-authenticates and
@@ -30,9 +31,8 @@ async function run(fn: () => Promise<string>): Promise<ActionResult> {
     refresh();
     return { ok: true, message, at: Date.now() };
   } catch (err) {
-    if (err instanceof AuthorizationError) return { ok: false, message: t("common.notAllowed"), at: Date.now() };
-    const m = err instanceof Error ? err.message : String(err);
-    return { ok: false, message: /users_email_unique|duplicate key/.test(m) ? t("settings.users.errors.emailTaken") : m, at: Date.now() };
+    if (err instanceof Error && /users_email_unique|duplicate key/.test(err.message)) return { ok: false, message: t("settings.users.errors.emailTaken"), at: Date.now() };
+    return { ok: false, message: failureMessage(err), at: Date.now() };
   }
 }
 
@@ -123,9 +123,11 @@ export async function addUserAction(_prev: ActionResult | null, fd: FormData): P
   });
 }
 
-async function loadTarget(viewerScoped: { groupId: string; propertyIds: string[] }, userId: string) {
-  const [u] = await withTenant(getAppDb(), viewerScoped, (tx) => tx.select({ id: schema.users.id, name: schema.users.name, role: schema.users.role, isActive: schema.users.isActive }).from(schema.users).where(eq(schema.users.id, userId)));
+/** The user an action is about: they must be in this property's scope for anyone but a group admin. */
+async function loadTarget(viewer: { scoped: { groupId: string; propertyIds: string[] }; property: { id: string }; roleAt: () => string }, userId: string) {
+  const [u] = await withTenant(getAppDb(), viewer.scoped, (tx) => tx.select({ id: schema.users.id, name: schema.users.name, role: schema.users.role, isActive: schema.users.isActive }).from(schema.users).where(eq(schema.users.id, userId)));
   if (!u) throw new Error("user not found");
+  if (!(await userInScope(getAppDb(), viewer.scoped, viewer.property.id, userId, viewer.roleAt() === "group_admin"))) throw new AuthorizationError("settings.users");
   return u;
 }
 
@@ -133,7 +135,7 @@ export async function updateUserAction(_prev: ActionResult | null, fd: FormData)
   return run(async () => {
     const viewer = await requireViewer();
     const userId = str(fd, "userId");
-    const target = await loadTarget(viewer.scoped, userId);
+    const target = await loadTarget(viewer, userId);
     const role = roleOf(str(fd, "role"));
     assertCan(viewer.actor(), "settings.users", { targetRole: target.role });
     assertCan(viewer.actor(), "settings.users", { targetRole: role });
@@ -151,7 +153,7 @@ export async function resetPasswordAction(_prev: ActionResult | null, fd: FormDa
   return run(async () => {
     const viewer = await requireViewer();
     const userId = str(fd, "userId");
-    const target = await loadTarget(viewer.scoped, userId);
+    const target = await loadTarget(viewer, userId);
     assertCan(viewer.actor(), "settings.users", { targetRole: target.role });
     const password = str(fd, "password");
     const problem = passwordProblem(password);
@@ -170,7 +172,7 @@ export async function setAccessAction(_prev: ActionResult | null, fd: FormData):
     const viewer = await requireViewer();
     const userId = str(fd, "userId");
     const grant = str(fd, "grant") === "1";
-    const target = await loadTarget(viewer.scoped, userId);
+    const target = await loadTarget(viewer, userId);
     assertCan(viewer.actor(), "settings.users", { targetRole: target.role });
     if (userId === viewer.user.id && !grant) throw new Error(t("settings.users.errors.self"));
     await withTenant(getAppDb(), viewer.scoped, async (tx) => {
@@ -187,7 +189,7 @@ export async function setActiveAction(_prev: ActionResult | null, fd: FormData):
     const viewer = await requireViewer();
     const userId = str(fd, "userId");
     const active = str(fd, "active") === "1";
-    const target = await loadTarget(viewer.scoped, userId);
+    const target = await loadTarget(viewer, userId);
     assertCan(viewer.actor(), "settings.users", { targetRole: target.role });
     if (userId === viewer.user.id) throw new Error(t("settings.users.errors.self"));
     await withTenant(getAppDb(), viewer.scoped, async (tx) => {

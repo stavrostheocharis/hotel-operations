@@ -9,6 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { demoFolder } from "@/db/scripts/lib/paths";
 import { t } from "@/i18n";
+import { canSee } from "@/auth/screens";
+import { NotAllowed } from "@/components/console/not-allowed";
 
 export const metadata = { title: t("imports.newImport") };
 
@@ -26,6 +28,7 @@ export default function NewImportPage() {
 
 async function Content() {
   const viewer = await requireViewer();
+  if (!canSee(viewer.roleAt(), "imports")) return <NotAllowed />;
   if (!viewer.can("imports.run")) return <p className="text-body text-muted-foreground">{t("common.notAllowed")}</p>;
   const demo = demoFolder();
   const hasDemo = demo

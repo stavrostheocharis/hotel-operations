@@ -13,14 +13,14 @@ import { updatePropertyAction } from "@/console/settings-actions";
 import { t } from "@/i18n";
 
 /** Name, time zone, season, when the export is expected. One Save. */
-export function PropertyForm({ profile, timezones, readOnly }: { profile: PropertyProfile; timezones: string[]; readOnly: boolean }) {
+export function PropertyForm({ profile, timezones }: { profile: PropertyProfile; timezones: string[] }) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(updatePropertyAction, null);
   useActionToast(state);
   return (
     <Card className="max-w-2xl">
       <CardContent>
         <form action={action} className="flex flex-col gap-5">
-          <fieldset disabled={readOnly || pending} className="contents">
+          <fieldset disabled={pending} className="contents">
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label={t("settings.property.name")} htmlFor="name">
                 <Input id="name" name="name" defaultValue={profile.name} required />
@@ -48,13 +48,11 @@ export function PropertyForm({ profile, timezones, readOnly }: { profile: Proper
             <Field label={t("settings.property.importTime")} htmlFor="importTime" hint={t("settings.property.importTimeHint")}>
               <Input id="importTime" name="importTime" type="time" defaultValue={profile.settings.importTime ?? ""} className="w-40" />
             </Field>
-            {readOnly ? null : (
-              <div className="flex justify-end">
-                <Button type="submit" disabled={pending}>
-                  {t("settings.property.save")}
-                </Button>
-              </div>
-            )}
+            <div className="flex justify-end">
+              <Button type="submit" disabled={pending}>
+                {t("settings.property.save")}
+              </Button>
+            </div>
           </fieldset>
         </form>
       </CardContent>

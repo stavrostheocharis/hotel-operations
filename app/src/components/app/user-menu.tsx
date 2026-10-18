@@ -1,4 +1,4 @@
-import { signOut } from "@/auth/actions";
+import { changePasswordAction, signOut } from "@/auth/actions";
 import { getViewer } from "@/auth/viewer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { label, t } from "@/i18n";
@@ -14,8 +14,17 @@ export async function UserMenu() {
       name={viewer.user.name}
       email={viewer.user.email}
       meta={[label("user.role", role), viewer.user.department ? label("user.department", viewer.user.department) : null].filter(Boolean).join(" · ")}
-      labels={{ theme: t("user.theme"), light: t("user.light"), dark: t("user.dark"), system: t("user.system"), signOut: t("user.signOut") }}
+      labels={{
+        theme: t("user.theme"),
+        light: t("user.light"),
+        dark: t("user.dark"),
+        system: t("user.system"),
+        signOut: t("user.signOut"),
+        changePassword: t("user.changePassword"),
+        password: { title: t("user.password.title"), lead: t("user.password.lead"), current: t("user.password.current"), next: t("user.password.next"), confirm: t("user.password.confirm"), save: t("user.password.save"), cancel: t("common.cancel") },
+      }}
       signOut={signOut}
+      changePassword={changePasswordAction}
     />
   );
 }

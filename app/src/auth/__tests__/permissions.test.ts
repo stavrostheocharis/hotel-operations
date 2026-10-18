@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertCan, AuthorizationError, can, type Actor } from "../permissions";
+import { assertCan, AuthorizationError, can, type Actor, type Department, type Role } from "../permissions";
 
 const admin: Actor = { userId: "u-admin", role: "group_admin", department: "management" };
 const gm: Actor = { userId: "u-gm", role: "gm", department: "management" };
@@ -43,5 +43,22 @@ describe("permissions", () => {
   it("assertCan throws a typed error", () => {
     expect(() => assertCan(readonly, "issue.note")).toThrow(AuthorizationError);
     expect(() => assertCan(gm, "issue.note")).not.toThrow();
+  });
+});
+
+describe("the capabilities added for the pilot", () => {
+  const a = (role: Role, department: Department | null = null): Actor => ({ userId: "u", role, department });
+  it("gate the settings and imports screens, the stop override and the placeholder button", () => {
+    expect(can(a("gm"), "settings.view")).toBe(true);
+    expect(can(a("dept_head", "engineering"), "settings.view")).toBe(true);
+    expect(can(a("dept_head", "housekeeping"), "settings.view")).toBe(false);
+    expect(can(a("gm"), "users.view")).toBe(true);
+    expect(can(a("dept_head", "engineering"), "users.view")).toBe(false);
+    expect(can(a("gm"), "imports.view")).toBe(true);
+    expect(can(a("supervisor"), "imports.view")).toBe(false);
+    expect(can(a("gm"), "imports.override")).toBe(false);
+    expect(can(a("group_admin"), "imports.override")).toBe(true);
+    expect(can(a("staff"), "feature.request")).toBe(true);
+    expect(can(a("readonly"), "feature.request")).toBe(false);
   });
 });
