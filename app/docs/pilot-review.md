@@ -13,6 +13,10 @@ re-import, guest identity, the job worker and the deployment itself each
 need work before the first client file goes in. None of it is large; most
 of section A is a few days.
 
+**Status.** The six blockers of section A are fixed on branch
+`pilot-blockers`, one commit each, with the fix noted under each item.
+Section B and C stand as written.
+
 ## A. Blockers: change before any real data goes in
 
 1. **Updated records never land.** `src/import/signals.ts:44-48` inserts
@@ -98,6 +102,11 @@ of section A is a few days.
    page); a user whose only property access is removed loops between
    `/sign-in` and `/today` forever (`src/auth/viewer.ts:33`,
    `src/app/(auth)/sign-in/page.tsx:34`).
+   **Fixed on `pilot-blockers`:** `safeReturnPath()` honours only a path
+   on this site (one slash, then neither slash nor backslash, no scheme,
+   no control characters) in the action and on the sign-in page; a signed
+   in person with no property lands on `/no-access`, which says so and
+   offers Sign out.
 
 ## B. Before the pilot starts: the first week of real use would hit these
 

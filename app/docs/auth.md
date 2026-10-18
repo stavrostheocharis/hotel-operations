@@ -102,3 +102,16 @@ src/db/__tests__/auth.test.ts   the functions through the app role
 
 Not yet: SSO (Microsoft / Google), password self-service, two-factor. All
 three fit behind the same `sessions` table.
+
+## No property to show
+
+A person who is signed in but holds no membership at any property (their
+access was removed, or none was given) lands on `/no-access`, a page that
+says so and offers Sign out, instead of looping between `/sign-in` and
+`/today`. `requireViewer()` sends them there when a session exists but
+`getViewer()` is null; the sign-in page does the same for a valid session
+with no properties; the proxy never redirects away from it.
+
+`?next=` is honoured only for a path on this site (`safeReturnPath()` in
+`src/auth/return-path.ts`): one leading slash, then neither a slash nor a
+backslash, no scheme, no control characters.

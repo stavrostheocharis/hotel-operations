@@ -3,6 +3,7 @@
 import { sql } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { safeReturnPath } from "./return-path";
 import { getAppDb } from "@/db";
 import { t } from "@/i18n";
 import { verifyPassword } from "./password";
@@ -32,8 +33,7 @@ function recordFailure(email: string) {
 
 /** Only same-site paths are honoured as a return target. */
 function safeNext(raw: FormDataEntryValue | null): string {
-  const s = typeof raw === "string" ? raw : "";
-  return s.startsWith("/") && !s.startsWith("//") ? s : "/today";
+  return safeReturnPath(typeof raw === "string" ? raw : null) ?? "/today";
 }
 
 export async function signIn(_prev: SignInState, formData: FormData): Promise<SignInState> {

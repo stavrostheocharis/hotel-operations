@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
+import { safeReturnPath } from "@/auth/return-path";
 import { getSession } from "@/auth/session";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,14 +33,14 @@ export default function SignInPage(props: PageProps<"/sign-in">) {
 
 async function Form({ searchParams }: Pick<PageProps<"/sign-in">, "searchParams">) {
   const session = await getSession();
-  if (session) redirect("/today");
+  if (session) redirect(session.propertyIds.length ? "/today" : "/no-access");
   const params = await searchParams;
   const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? null;
   const next = one(params.next);
   const notice = one(params.expired) ? t("signIn.expired") : null;
   return (
     <SignInForm
-      next={next && next.startsWith("/") && !next.startsWith("//") ? next : null}
+      next={safeReturnPath(next)}
       notice={notice}
       labels={{ email: t("signIn.email"), password: t("signIn.password"), submit: t("signIn.submit"), submitting: t("signIn.submitting"), forgot: t("signIn.forgot") }}
     />

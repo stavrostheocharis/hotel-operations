@@ -58,6 +58,10 @@ export const en = {
       management: "Management",
     },
   },
+  noAccess: {
+    title: "No property to show",
+    body: "{email} is signed in, but has access to no property at the moment. Ask your general manager or group admin to give you access, then sign in again.",
+  },
   signIn: {
     title: "Sign in",
     email: "Email",
