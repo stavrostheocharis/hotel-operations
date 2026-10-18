@@ -11,6 +11,8 @@ import { LANGUAGE } from "@/audit/markdown";
 import { label, t } from "@/i18n";
 import { CATEGORIES, TOPICS } from "@/normalize/taxonomy";
 import { ClassificationForm, CreateIssueDialog, LinkButton, LinkSearch, PlacePicker } from "./record-tools";
+import { needsTranslation } from "@/console/format";
+import { categoryLabel, topicLabel } from "@/console/format";
 
 /**
  * One record, in full: what it says, where and what the engine thinks it
@@ -36,13 +38,13 @@ export function RecordPanel({
   canLink: boolean;
 }) {
   const translated = record.textEn && record.textOriginal && record.textEn !== record.textOriginal;
-  const categories = CATEGORIES.map((c) => ({ value: c, label: c.replace(/_/g, " ") }));
+  const categories = CATEGORIES.map((c) => ({ value: c, label: label("category", c) }));
   const topics = Object.entries(TOPICS).map(([value, def]) => ({ value, label: value.replace(/_/g, " "), category: def.category }));
   const departments = schema.department.enumValues.map((d) => ({ value: d, label: label("user.department", d) }));
   const severities = schema.issueSeverity.enumValues.map((s) => ({ value: s, label: label("severity", s) }));
   const placeLocked = record.lockedFields.includes("location");
   const classLocked = record.lockedFields.includes("category") || record.lockedFields.includes("topic");
-  const defaultTitle = `${(record.topic ?? record.category ?? "issue").replace(/_/g, " ")}${record.locationCode ? ` · ${record.locationCode}` : ""}`;
+  const defaultTitle = `${topicLabel(record.topic, record.category)}${record.locationCode ? ` · ${record.locationCode}` : ""}`;
 
   return (
     <>
@@ -89,7 +91,7 @@ export function RecordPanel({
           {canReview ? (
             <ClassificationForm signalId={record.id} category={record.category} topic={record.topic} categories={categories} topics={topics} />
           ) : (
-            <span className="text-body text-foreground">{[record.category, record.topic].filter(Boolean).map((x) => String(x).replace(/_/g, " ")).join(" · ") || t("common.none")}</span>
+            <span className="text-body text-foreground">{[categoryLabel(record.category), record.topic?.replace(/_/g, " ")].filter(Boolean).join(" · ")}</span>
           )}
         </div>
       </section>
@@ -152,6 +154,7 @@ export function RecordPanel({
         </TabsList>
         <TabsContent value="text">
           <p className="whitespace-pre-wrap text-body text-foreground">{record.textOriginal ?? record.textEn ?? ""}</p>
+          {needsTranslation(record.textEn, record.language) ? <p className="text-caption text-muted-soft">{t("signals.record.untranslated")}</p> : null}
           {record.normalized && Object.keys(record.normalized).length ? (
             <p className="mt-2 text-caption text-muted-soft">{summariseNormalized(record.normalized)}</p>
           ) : null}
@@ -175,10 +178,10 @@ export function RecordPanel({
 function summariseNormalized(n: Record<string, unknown>): string {
   const parts: string[] = [];
   if (n.version) parts.push(`normalised ${String(n.version)}`);
-  if (n.language_method) parts.push(`language by ${String(n.language_method)}`);
+  if (n.language_method) parts.push(t("signals.record.languageBy", { method: String(n.language_method) }));
   if (n.location_rule) parts.push(`place by ${String(n.location_rule)}`);
   const c = n.classification as { method?: string; confidence?: number } | undefined;
   if (c?.method) parts.push(`topic by ${c.method}${c.confidence ? ` (${Math.round(c.confidence * 100)}%)` : ""}`);
-  if (n.place) parts.push(`moved from ${String(n.place)}`);
+  if (n.place) parts.push(t("signals.record.movedFrom", { place: String(n.place) }));
   return parts.join(" · ");
 }

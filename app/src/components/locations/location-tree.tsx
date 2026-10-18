@@ -90,7 +90,7 @@ function Node({ node, depth, selectedCode, isOpen, toggle }: { node: TreeItem; d
         style={{ paddingLeft: depth * 14 }}
       >
         {node.children.length ? (
-          <button type="button" aria-label={open ? "collapse" : "expand"} aria-expanded={open} onClick={() => toggle(node.code)} className="flex size-7 items-center justify-center rounded-sm text-muted-foreground focus-visible:shadow-focus focus-visible:outline-none">
+          <button type="button" aria-label={open ? t("user.collapse") : t("user.expand")} aria-expanded={open} onClick={() => toggle(node.code)} className="flex size-7 items-center justify-center rounded-sm text-muted-foreground focus-visible:shadow-focus focus-visible:outline-none">
             <ChevronRightIcon className={cn("size-4 transition-transform", open && "rotate-90")} />
           </button>
         ) : (

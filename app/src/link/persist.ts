@@ -41,9 +41,15 @@ type ExistingIssue = {
   ownerUserId: string | null;
   verifiedAt: Date | null;
   openedAt: Date;
+  resolvedAt: Date | null;
   reopenCount: number;
+  title: string;
+  category: string | null;
+  severity: string;
   signalIds: string[];
   humanState: boolean;
+  /** Fields a person edited by hand (`issue.edited`): the rebuild leaves them alone. */
+  edited: Set<string>;
 };
 
 const DERIVED_OUTCOMES = ["recurred", "no_recurrence"] as const;
@@ -77,7 +83,11 @@ export async function reconcileIssues(
         ownerUserId: schema.issues.ownerUserId,
         verifiedAt: schema.issues.verifiedAt,
         openedAt: schema.issues.openedAt,
+        resolvedAt: schema.issues.resolvedAt,
         reopenCount: schema.issues.reopenCount,
+        title: schema.issues.title,
+        category: schema.issues.category,
+        severity: schema.issues.severity,
       })
       .from(schema.issues)
       .where(and(eq(schema.issues.propertyId, tenant.propertyId), isNull(schema.issues.supersededAt)));
@@ -99,6 +109,7 @@ export async function reconcileIssues(
     const touched = new Set<string>();
     // Records a person linked by hand stay with their issue; an issue made of them is a person's issue.
     const humanLinked = new Set<string>();
+    const editedFields = new Map<string, Set<string>>();
     if (existingIds.length) {
       const human = await tx
         .select({ id: schema.issueSignals.issueId })
@@ -109,10 +120,23 @@ export async function reconcileIssues(
         humanLinked.add(h.id);
       }
       const noted = await tx
-        .select({ id: schema.events.entityId })
+        .select({ id: schema.events.entityId, type: schema.events.type, payload: schema.events.payload })
         .from(schema.events)
         .where(and(eq(schema.events.propertyId, tenant.propertyId), eq(schema.events.entityType, "issue"), inArray(schema.events.type, ["issue.note", "issue.edited"])));
-      for (const n of noted) touched.add(n.id);
+      for (const n of noted) {
+        touched.add(n.id);
+        if (n.type === "issue.edited") {
+          const set = editedFields.get(n.id) ?? new Set<string>();
+          for (const k of Object.keys(n.payload ?? {})) set.add(k);
+          editedFields.set(n.id, set);
+        }
+      }
+      // A check somebody scheduled is a promise to a person: the issue it hangs on is theirs now.
+      const checks = await tx
+        .select({ id: schema.verificationTasks.issueId })
+        .from(schema.verificationTasks)
+        .where(and(eq(schema.verificationTasks.propertyId, tenant.propertyId), eq(schema.verificationTasks.status, "open")));
+      for (const c of checks) touched.add(c.id);
       const humanOutcomes = await tx
         .select({ id: schema.outcomes.issueId })
         .from(schema.outcomes)
@@ -128,6 +152,7 @@ export async function reconcileIssues(
       ...r,
       signalIds: membership.get(r.id) ?? [],
       humanState: r.ownerUserId != null || r.statusSource === "human" || r.verifiedAt != null || touched.has(r.id),
+      edited: editedFields.get(r.id) ?? new Set<string>(),
     }));
     const existingById = new Map(existing.map((e) => [e.id, e]));
 
@@ -241,19 +266,21 @@ export async function reconcileIssues(
           const e = existingById.get(existingId)!;
           const merged = mergeStatus(e, d);
           if (merged.reopenedByEvidence) reopenedByEvidence++;
+          // What a person wrote by hand outranks what the rebuild derives: their title, category and
+          // severity stay, and the date they resolved it stays while their status stands.
           await tx
             .update(schema.issues)
             .set({
-              title: d.title,
-              category: d.category,
-              severity: d.severity,
+              title: e.edited.has("title") ? e.title : d.title,
+              category: e.edited.has("category") ? e.category : d.category,
+              severity: e.edited.has("severity") ? (e.severity as typeof d.severity) : d.severity,
               derivedStatus: d.status,
               status: merged.status,
               statusSource: merged.statusSource,
               statusChangedAt: merged.changed ? now : e.statusChangedAt,
               locationId: d.locationCode ? (index.idOf(d.locationCode) ?? null) : null,
               openedAt: d.openedAt,
-              resolvedAt: d.resolvedAt,
+              resolvedAt: merged.statusSource === "human" ? (e.resolvedAt ?? d.resolvedAt) : d.resolvedAt,
               reopenCount: Math.max(d.reopenCount, merged.status === "reopened" && e.statusSource === "human" ? e.reopenCount : 0),
               rootCause: d.rootCause,
               recurrenceWindowDays: d.recurrenceWindowDays,

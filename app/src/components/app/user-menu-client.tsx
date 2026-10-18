@@ -1,8 +1,11 @@
 "use client";
 
-import { ChevronsUpDownIcon, LogOutIcon, MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
+import { ChevronsUpDownIcon, KeyRoundIcon, LogOutIcon, MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
+
+import type { PasswordState } from "@/auth/actions";
+import { ChangePasswordDialog, type PasswordLabels } from "./change-password-dialog";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -29,15 +32,18 @@ export function UserMenuClient({
   meta,
   labels,
   signOut,
+  changePassword,
 }: {
   name: string;
   email: string;
   meta: string;
-  labels: { theme: string; light: string; dark: string; system: string; signOut: string };
+  labels: { theme: string; light: string; dark: string; system: string; signOut: string; changePassword: string; password: PasswordLabels };
   signOut: () => Promise<void>;
+  changePassword: (prev: PasswordState, fd: FormData) => Promise<PasswordState>;
 }) {
   const { theme, setTheme } = useTheme();
   const [pending, startTransition] = useTransition();
+  const [passwordOpen, setPasswordOpen] = useState(false);
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -76,11 +82,15 @@ export function UserMenuClient({
               </DropdownMenuRadioGroup>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setPasswordOpen(true)}>
+              <KeyRoundIcon className="size-4" /> {labels.changePassword}
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => startTransition(() => signOut())}>
               <LogOutIcon className="size-4" /> {labels.signOut}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <ChangePasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} action={changePassword} labels={labels.password} />
       </SidebarMenuItem>
     </SidebarMenu>
   );

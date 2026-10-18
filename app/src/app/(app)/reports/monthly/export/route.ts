@@ -1,10 +1,12 @@
 import { requireViewer } from "@/auth/viewer";
 import { buildMonthlyReport, renderMonthlyCsv } from "@/console/reports";
 import { getAppDb } from "@/db";
+import { canSee } from "@/auth/screens";
 
 /** GET /reports/monthly/export?format=csv|json[&from=YYYY-MM-DD&to=YYYY-MM-DD] */
 export async function GET(request: Request) {
   const viewer = await requireViewer();
+  if (!canSee(viewer.roleAt(), "reports")) return new Response("forbidden", { status: 403 });
   const url = new URL(request.url);
   const format = url.searchParams.get("format") ?? "csv";
   const from = url.searchParams.get("from") ?? undefined;

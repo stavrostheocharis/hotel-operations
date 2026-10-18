@@ -12,6 +12,8 @@ import type { ReviewPair, ReviewSide } from "@/console/review";
 import type { PairVerdict } from "@/console/review";
 import { decidePairAction, undoPairAction } from "@/console/review-actions";
 import { t } from "@/i18n";
+import { needsTranslation } from "@/console/format";
+import { topicLabel } from "@/console/format";
 
 /** One pair at a time, side by side; S / N / K on the keyboard. */
 export function ReviewDeck({ pair, tz }: { pair: ReviewPair; tz: string }) {
@@ -19,12 +21,24 @@ export function ReviewDeck({ pair, tz }: { pair: ReviewPair; tz: string }) {
   const decide = (verdict: PairVerdict) =>
     start(async () => {
       const res = await decidePairAction(pair.id, verdict);
-      if (res.ok) toast.success(res.message, verdict === "skip" ? undefined : { action: { label: t("review.undo"), onClick: () => start(async () => void (await undoPairAction(pair.id))) } });
+      if (res.ok)
+        toast.success(res.message, verdict === "skip" ? undefined : {
+          action: {
+            label: t("review.undo"),
+            onClick: () =>
+              start(async () => {
+                const undone = await undoPairAction(pair.id);
+                if (undone.ok) toast.success(undone.message);
+                else toast.error(undone.message, { duration: Infinity, closeButton: true });
+              }),
+          },
+        });
       else toast.error(res.message, { duration: Infinity, closeButton: true });
     });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement | null)?.closest("input, textarea, [contenteditable]") || pending) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || pending) return;
+      if ((e.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable], [role=menu], [role=menuitem], [role=listbox], [role=option], [role=combobox], [role=dialog]")) return;
       const k = e.key.toLowerCase();
       if (k === "s") decide("same");
       else if (k === "n") decide("different");
@@ -71,9 +85,10 @@ function Side({ side, tz }: { side: ReviewSide; tz: string }) {
         </div>
         <div className="text-caption text-muted-foreground">
           {side.locationName ? `${side.locationName} · ${side.locationCode}` : t("signals.noPlace")}
-          {side.topic || side.category ? ` · ${(side.topic ?? side.category ?? "").replace(/_/g, " ")}` : ""}
+          {side.topic || side.category ? ` · ${topicLabel(side.topic, side.category)}` : ""}
         </div>
         <p className="text-body text-foreground">{side.textEn ?? side.textOriginal ?? ""}</p>
+        {needsTranslation(side.textEn, side.language) ? <p className="text-caption text-muted-soft">{t("signals.record.untranslated")}</p> : null}
         {side.textEn && side.textOriginal && side.textEn !== side.textOriginal ? <p className="text-caption text-muted-soft">{side.textOriginal}</p> : null}
         <div className="flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
           {side.issueId ? (

@@ -2,6 +2,8 @@ import { renderMarkdown, renderWinterWorksCsv } from "@/audit/markdown";
 import { buildAuditReport } from "@/audit/report";
 import { getCurrentTenant } from "@/console/tenant";
 import { getAppDb } from "@/db";
+import { canSee } from "@/auth/screens";
+import { requireViewer } from "@/auth/viewer";
 
 /**
  * GET /reports/audit/export?format=md|csv|json[&from=YYYY-MM-DD&to=YYYY-MM-DD]
@@ -18,6 +20,8 @@ export async function GET(request: Request) {
   if (from && !isDate(from)) return new Response("from must be YYYY-MM-DD", { status: 400 });
   if (to && !isDate(to)) return new Response("to must be YYYY-MM-DD", { status: 400 });
 
+  const viewer = await requireViewer();
+  if (!canSee(viewer.roleAt(), "reports")) return new Response("forbidden", { status: 403 });
   const tenant = await getCurrentTenant();
   const report = await buildAuditReport(getAppDb(), tenant, { from, to });
   const stem = `audit-${report.property.code.toLowerCase()}-${report.season.from}-${report.season.to}`;

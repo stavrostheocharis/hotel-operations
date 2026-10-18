@@ -23,6 +23,9 @@ const ALLOWED = /\.(csv|tsv|txt|xlsx|xlsm|xls|json|jsonl|ndjson|pdf|docx)$/i;
 export async function POST(request: Request) {
   const viewer = await requireViewer();
   if (!viewer.can("imports.run")) return Response.json({ error: t("common.notAllowed") }, { status: 403 });
+  // Refuse an oversized body before reading it into memory.
+  const declared = Number(request.headers.get("content-length") ?? 0);
+  if (declared > MAX_BATCH + 1024 * 1024) return Response.json({ error: t("imports.errors.tooBig") }, { status: 413 });
   const form = await request.formData();
   const files = form.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
   if (!files.length) return Response.json({ error: t("imports.upload.none") }, { status: 400 });

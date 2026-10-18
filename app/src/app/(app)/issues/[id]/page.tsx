@@ -13,7 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { decideLink } from "@/console/actions";
 import { fmtDate, fmtDateTime, topicLabel } from "@/console/format";
 import { getIssueContext, listAssignableUsers } from "@/console/issue-detail";
 import { listIssueVerifications } from "@/console/verification";
@@ -23,8 +22,11 @@ import { defaultDepartmentFor, getPropertyProfile } from "@/console/property-set
 import { getAppDb, schema } from "@/db";
 import { label, t } from "@/i18n";
 import { CATEGORIES } from "@/normalize/taxonomy";
+import { LinkDecision } from "@/components/issues/link-decision";
+import { needsTranslation } from "@/console/format";
+import { categoryLabel } from "@/console/format";
 
-export const metadata = { title: "Issue" };
+export const metadata = { title: t("issue.title") };
 
 /**
  * "What is this problem, who has it, and is it really fixed?"
@@ -279,7 +281,7 @@ async function IssueContent({ params }: Pick<PageProps<"/issues/[id]">, "params"
 
 function HeaderLine({ issue, servesCount, tz }: { issue: IssueDetail; servesCount: number; tz: string }) {
   const parts: string[] = [];
-  parts.push(issue.category ? issue.category.replace(/_/g, " ") : "unclassified");
+  parts.push(categoryLabel(issue.category));
   if (issue.locationName) parts.push(`${issue.locationName} (${issue.locationCode}, ${issue.locationKind})${servesCount ? ` · ${t("issue.header.serves", { n: servesCount })}` : ""}`);
   else parts.push(t("issue.meta.noLocation"));
   parts.push(issue.ownerName ? t("issue.header.owner", { name: `${issue.ownerName}${issue.department ? `, ${label("user.department", issue.department)}` : ""}` }) : t("issue.header.noOwner"));
@@ -338,21 +340,13 @@ function SignalRow({ signal: s, issueId, tz, canDecide }: { signal: IssueSignal;
       </div>
       <p className="text-body text-foreground">{text ?? <span className="text-muted-soft">{t("issue.noText")}</span>}</p>
       {s.textEn && s.textOriginal && s.textEn !== s.textOriginal ? <p className="text-caption text-muted-soft">{s.textOriginal}</p> : null}
+      {needsTranslation(s.textEn, s.language) ? <p className="text-caption text-muted-soft">{t("signals.record.untranslated")}</p> : null}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-caption text-muted-foreground" title={reason || undefined}>
           {confirmed ? `${label("method", "human")} · ${s.decidedByName ?? s.decidedBy}` : `${rule.replace(/[:_]/g, " ")}${s.confidence !== null ? ` · ${Math.round(s.confidence * 100)}%` : ""}`}
         </span>
         {canDecide && s.role !== "primary" && !confirmed ? (
-          <form action={decideLink} className="ml-auto flex gap-2">
-            <input type="hidden" name="issueId" value={issueId} />
-            <input type="hidden" name="signalId" value={s.id} />
-            <Button type="submit" name="decision" value="confirm" variant="ghost">
-              {t("issue.confirm")}
-            </Button>
-            <Button type="submit" name="decision" value="reject" variant="ghost">
-              {t("issue.reject")}
-            </Button>
-          </form>
+          <LinkDecision issueId={issueId} signalId={s.id} />
         ) : null}
       </div>
     </article>

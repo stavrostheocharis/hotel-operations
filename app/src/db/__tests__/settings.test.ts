@@ -6,7 +6,7 @@ import { hashPassword, verifyPassword } from "@/auth/password";
 import { can } from "@/auth/permissions";
 import { defaultDepartmentFor, getPropertyProfile, parseSettings, readSettings, recurrenceWindowDays } from "@/console/property-settings";
 import { buildMonthlyReport, monthsBetween, renderMonthlyCsv } from "@/console/reports";
-import { listUsers, timezoneOptions } from "@/console/settings";
+import { listUsers, timezoneOptions, userInScope } from "@/console/settings";
 import { buildIssue } from "@/link/issues";
 import { linkSignals } from "@/link/pipeline";
 import type { LinkSignal } from "@/link/types";
@@ -92,6 +92,27 @@ describe("users and roles", () => {
     expect(can({ ...gm, role: "dept_head" }, "settings.users", { targetRole: "staff" })).toBe(false);
   });
 
+  it("a GM sees and acts on this property's people and the group admins, not the rest of the group", async () => {
+    const [b] = await admin
+      .insert(schema.properties)
+      .values({ groupId, code: "SCOPE-B", name: "Other property", timezone: "Europe/Athens" })
+      .onConflictDoUpdate({ target: [schema.properties.groupId, schema.properties.code], set: { name: "Other property" } })
+      .returning({ id: schema.properties.id });
+    const [elsewhere] = await admin.insert(schema.users).values({ groupId, email: "elsewhere@demo.hotel", name: "Elsa Elsewhere", role: "gm", department: "management" }).returning({ id: schema.users.id });
+    await admin.insert(schema.memberships).values({ groupId, propertyId: b.id, userId: elsewhere.id });
+    const here = await listUsers(app, ctx, propertyId);
+    expect(here.some((u) => u.id === elsewhere.id)).toBe(false);
+    expect(here.some((u) => u.email === "admin@demo.hotel")).toBe(true);
+    const everyone = await listUsers(app, ctx, propertyId, { everyone: true });
+    expect(everyone.some((u) => u.id === elsewhere.id)).toBe(true);
+    const [gmHere] = await admin.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, "gm@demo.hotel"));
+    expect(await userInScope(app, ctx, propertyId, gmHere.id, false)).toBe(true);
+    expect(await userInScope(app, ctx, propertyId, elsewhere.id, false)).toBe(false);
+    expect(await userInScope(app, ctx, propertyId, elsewhere.id, true)).toBe(true);
+    await admin.delete(schema.memberships).where(eq(schema.memberships.userId, elsewhere.id));
+    await admin.delete(schema.users).where(eq(schema.users.id, elsewhere.id));
+  });
+
   it("lists the property's people with their access, and a new user created through the app role can sign in", async () => {
     const before = await listUsers(app, ctx, propertyId);
     expect(before.find((u) => u.email === "gm@demo.hotel")?.member).toBe(true);
@@ -117,10 +138,12 @@ describe("users and roles", () => {
       await tx.delete(schema.memberships).where(eq(schema.memberships.userId, id));
       await tx.update(schema.users).set({ isActive: false }).where(eq(schema.users.id, id));
     });
-    const gone = (await listUsers(app, ctx, propertyId)).find((u) => u.id === id)!;
+    // without access here the person leaves this property's list; a group admin still sees them
+    expect((await listUsers(app, ctx, propertyId)).some((u) => u.id === id)).toBe(false);
+    const gone = (await listUsers(app, ctx, propertyId, { everyone: true })).find((u) => u.id === id)!;
     expect(gone.member).toBe(false);
     expect(gone.isActive).toBe(false);
-    expect((await listUsers(app, ctx, propertyId)).at(-1)?.id).toBe(id);
+    expect((await listUsers(app, ctx, propertyId, { everyone: true })).at(-1)?.id).toBe(id);
     await admin.execute(sql`delete from user_credentials where user_id = ${id}`);
     await admin.delete(schema.users).where(eq(schema.users.id, id));
   });

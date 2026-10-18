@@ -5,16 +5,17 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
-import { assertCan, AuthorizationError } from "@/auth/permissions";
+import { assertCan } from "@/auth/permissions";
 import { requireViewer } from "@/auth/viewer";
 import { getAppDb, schema, withTenant } from "@/db";
 import { demoFolder, uploadsDir } from "@/db/scripts/lib/paths";
 import { mappingFromReport } from "@/import/mapping";
 import { t } from "@/i18n";
-import { enqueueJob, JobAlreadyRunning } from "@/jobs/runner";
+import { enqueueJob } from "@/jobs/runner";
 import { markStalled } from "@/jobs/run";
 import { runRealityCheck } from "@/reality";
 import type { ActionResult } from "./issue-actions";
+import { failureMessage } from "./action-errors";
 
 /**
  * The import wizard's steps and the job buttons. Every action
@@ -32,9 +33,7 @@ async function run(fn: () => Promise<string>): Promise<ActionResult> {
     refresh();
     return { ok: true, message, at: Date.now() };
   } catch (err) {
-    if (err instanceof AuthorizationError) return { ok: false, message: t("common.notAllowed"), at: Date.now() };
-    if (err instanceof JobAlreadyRunning) return { ok: false, message: t("jobs.toast.alreadyRunning"), at: Date.now() };
-    return { ok: false, message: err instanceof Error ? err.message : String(err), at: Date.now() };
+    return { ok: false, message: failureMessage(err), at: Date.now() };
   }
 }
 
@@ -104,7 +103,7 @@ export async function loadBatchAction(_prev: ActionResult | null, fd: FormData):
     const [batch] = await withTenant(getAppDb(), viewer.scoped, (tx) => tx.select().from(schema.importBatches).where(eq(schema.importBatches.id, batchId)));
     if (!batch) throw new Error("batch not found");
     if (batch.status !== "checked" && batch.status !== "failed" && batch.status !== "loaded") throw new Error(t("imports.errors.notChecked"));
-    if (batch.verdict === "stop" && !viewer.can("settings.users")) throw new Error(t("imports.errors.stop"));
+    if (batch.verdict === "stop" && !viewer.can("imports.override")) throw new Error(t("imports.errors.stop"));
     const { id } = await enqueueJob(getAppDb(), viewer.scoped, { propertyId: viewer.property.id, kind: "import", params: { batchId: batch.id, propertyCode: viewer.property.code, llm: str(fd, "llm") === "on" }, requestedBy: viewer.user.id });
     await withTenant(getAppDb(), viewer.scoped, (tx) => tx.update(schema.importBatches).set({ status: "loading", jobId: id, error: null }).where(eq(schema.importBatches.id, batch.id)));
     return t("imports.toast.loading");

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
+import { t } from "@/i18n";
 
 /** DESIGN.md → Shape / Elevation: sheets are floating panels, so they get
  *  `shadow-float` and a 20px radius on the inner edge. No border rule. */
@@ -77,7 +78,7 @@ function SheetContent({
             }
           >
             <XIcon />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{t("common.close")}</span>
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Popup>

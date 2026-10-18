@@ -6,6 +6,7 @@ import { label, t } from "@/i18n";
 import type { Colour, RealityReport } from "@/reality/types";
 
 import { VERDICT_VARIANT } from "./stage";
+import { fmtPeriod } from "@/console/format";
 
 const COLOUR: Record<Colour, "success" | "warning" | "critical" | "secondary"> = { green: "success", amber: "warning", red: "critical", na: "secondary" };
 
@@ -65,7 +66,7 @@ export function ReportSummary({ report, mapping }: { report: RealityReport; mapp
                         {d.files.length ? <div className="text-caption text-muted-foreground">{d.files.join(", ")}</div> : null}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{d.status === "received" ? d.rows.toLocaleString("en-GB") : "–"}</TableCell>
-                      <TableCell className="hidden text-caption text-muted-foreground md:table-cell">{d.dateRange ? `${d.dateRange.from} → ${d.dateRange.to}` : "–"}</TableCell>
+                      <TableCell className="hidden text-caption text-muted-foreground md:table-cell">{d.dateRange ? fmtPeriod(d.dateRange.from, d.dateRange.to) : "–"}</TableCell>
                       <TableCell className="whitespace-normal text-caption">
                         {d.status !== "received" ? (
                           <Badge variant="secondary">{t("imports.check.missing")}</Badge>
@@ -98,7 +99,7 @@ export function ReportSummary({ report, mapping }: { report: RealityReport; mapp
                         <div className="text-caption text-muted-foreground">{d.rows.map((r) => `${r.measure}: ${r.value}`).join(" · ")}</div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Badge variant={COLOUR[d.colour]}>{d.colour}</Badge>
+                        <Badge variant={COLOUR[d.colour]}>{label("imports.colour", d.colour)}</Badge>
                       </TableCell>
                     </TableRow>
                   ))}

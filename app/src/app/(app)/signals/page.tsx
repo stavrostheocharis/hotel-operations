@@ -23,6 +23,10 @@ import { getAppDb, schema } from "@/db";
 import { label, t } from "@/i18n";
 import { CATEGORIES } from "@/normalize/taxonomy";
 import { cn } from "@/lib/utils";
+import { canSee } from "@/auth/screens";
+import { NotAllowed } from "@/components/console/not-allowed";
+import { needsTranslation } from "@/console/format";
+import { topicLabel } from "@/console/format";
 
 export const metadata = { title: t("signals.title") };
 
@@ -58,6 +62,7 @@ async function Inbox({ searchParams }: Pick<PageProps<"/signals">, "searchParams
   const record = one(params.record);
 
   const viewer = await requireViewer();
+  if (!canSee(viewer.roleAt(), "signals")) return <NotAllowed />;
   const db = getAppDb();
   const tz = viewer.property.timezone;
   const filters = { timeZone: tz, q, source, category, from, to, nonEnglish };
@@ -74,7 +79,7 @@ async function Inbox({ searchParams }: Pick<PageProps<"/signals">, "searchParams
     return `/signals${s ? `?${s}` : ""}`;
   };
   const sources = schema.signalSource.enumValues.filter((s) => s !== "pms").map((s) => ({ value: s, label: label("source", s) }));
-  const categories = CATEGORIES.map((c) => ({ value: c, label: c.replace(/_/g, " ") }));
+  const categories = CATEGORIES.map((c) => ({ value: c, label: label("category", c) }));
 
   let drawer: React.ReactNode = null;
   if (record) {
@@ -102,7 +107,7 @@ async function Inbox({ searchParams }: Pick<PageProps<"/signals">, "searchParams
   return (
     <>
       <ViewTabs active={view} tabs={SIGNAL_VIEWS.map((v) => ({ key: v, label: label("signals.views", v), count: counts[v], href: hrefFor(v) }))} />
-      <SignalsFilterBar sources={sources} categories={categories} />
+      <SignalsFilterBar key={keep.toString()} sources={sources} categories={categories} />
       {result.rows.length === 0 ? (
         q ? (
           <EmptyState icon={<SearchXIcon />} title={t("signals.empty.search", { q })} action={<Button variant="secondary" render={<Link href="/signals" />}>{t("signals.toolbar.clear")}</Button>} />
@@ -135,12 +140,13 @@ async function Inbox({ searchParams }: Pick<PageProps<"/signals">, "searchParams
                     </TableCell>
                     <TableCell className="hidden text-body md:table-cell">
                       {r.locationCode ? <span className="text-foreground">{r.locationCode}</span> : <span className="text-muted-foreground">{t("signals.noPlace")}</span>}
-                      {r.topic || r.category ? <div className="text-caption text-muted-foreground">{(r.topic ?? r.category ?? "").replace(/_/g, " ")}</div> : null}
+                      {r.topic || r.category ? <div className="text-caption text-muted-foreground">{topicLabel(r.topic, r.category)}</div> : null}
                     </TableCell>
                     <TableCell className="max-w-md whitespace-normal">
                       <Link href={hrefFor(view, page, r.id)} className="line-clamp-2 text-body text-foreground hover:underline focus-visible:shadow-focus focus-visible:outline-none">
                         {r.text ?? <span className="text-muted-soft">{t("issue.noText")}</span>}
                       </Link>
+                      {needsTranslation(r.translated ? "x" : null, r.language) ? <div className="text-caption text-muted-soft">{t("signals.record.untranslated")}</div> : null}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
                       {r.issueId ? (

@@ -67,7 +67,14 @@ membership override, else the user's role.
 
 | Capability | group_admin | gm | dept_head | supervisor | staff | readonly |
 |---|---|---|---|---|---|---|
-| see every screen, reports, exports | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Today, Exceptions, issues, Locations | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Verifications | ✓ | ✓ | ✓ | ✓ | ✓ | – |
+| Signals, Review | ✓ | ✓ | ✓ | ✓ | – | – |
+| Reports (and their exports) | ✓ | ✓ | ✓ | – | – | ✓ |
+| Imports, job progress (`imports.view`) | ✓ | ✓ | – | – | – | – |
+| Settings (`settings.view`; property and categories read-only below gm) | ✓ | ✓ | engineering | – | – | – |
+| Users tab (`users.view`) | ✓ | ✓ | – | – | – | – |
+| Load a batch the check said to stop (`imports.override`) | ✓ | – | – | – | – | – |
 | issue.assign | ✓ | ✓ | own dept / unassigned | own dept / unassigned | – | – |
 | issue.status | ✓ | ✓ | own dept | own dept | own issues | – |
 | issue.note | ✓ | ✓ | ✓ | ✓ | ✓ | – |
@@ -75,12 +82,24 @@ membership override, else the user's role.
 | verification.schedule, signals.review, links.decide | ✓ | ✓ | ✓ | ✓ | – | – |
 | imports.run, jobs.run, settings.property | ✓ | ✓ | – | – | – | – |
 | settings.locations | ✓ | ✓ | engineering | – | – | – |
-| settings.users | ✓ | not group_admins | – | – | – | – |
+| settings.users | whole group | this property's members, not group_admins | – | – | – | – |
+| feature.request (the placeholders' button) | ✓ | ✓ | ✓ | ✓ | ✓ | – |
+| change own password | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Every server action starts with `requireViewer()` and `assertCan()`; the UI
 hides what `viewer.can()` denies, but the action is the real check. The
-navigation (`src/components/app/nav.ts`) hides sections by role the same
-way.
+navigation (`src/components/app/nav.ts`) is also the screen boundary:
+`canSee(role, screen)` (`src/auth/screens.ts`) reads the same map, every
+gated page renders "Not for your role" inside its Suspense island when it
+fails, and the export, memo and job routes answer 403. Forms appear only
+for people who can submit them: a role that may look but not change sees
+a read-only summary, never a greyed-out form, and the queue shows
+Assign… only on rows the server would accept. Failures reach the toast as
+our own sentence; anything a library threw is logged and replaced
+(`src/console/action-errors.ts`). Everyone can change their own password
+from the user menu (`changePasswordAction`): the current password must
+match, and the session is re-issued because `auth_set_password` signs
+every session of the user out.
 
 ## Files
 

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
+import { t } from "@/i18n";
 
 /** DESIGN.md → Shape / Elevation: dialogs are 20px panels on `shadow-float`
  *  with no ring; title is `title-sm` (16/500). The footer is plain: no rule,
@@ -74,7 +75,7 @@ function DialogContent({
             }
           >
             <XIcon />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{t("common.close")}</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Popup>

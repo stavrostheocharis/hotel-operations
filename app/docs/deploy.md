@@ -59,8 +59,14 @@ ALTER ROLE pii_admin PASSWORD '…';
   `job.finished` with `status: failed` in `events`.
 - **Scaling**: several web replicas are fine (sessions are in the
   database); several workers are fine (claims use `FOR UPDATE SKIP
-  LOCKED`); one Postgres with ~10 connections per web replica and 3 per
-  worker (`createDb` sets `max`).
+  LOCKED`); one Postgres with `DB_POOL_MAX` connections per web replica
+  (default 10) and 3 per worker; keep the sum under `max_connections` or
+  put pgbouncer in front.
+- **Translations and the model**: normalisation runs rules only unless
+  the worker has `OPENAI_API_KEY`; records in other languages then show
+  "Not translated yet". Before the pilot's first review session, run one
+  normalisation with the model (the wizard's switch, or
+  `pnpm db:normalize --llm` on the server) and budget the calls.
 - **The nightly export** is uploaded through `/imports` or placed in a
   folder `DATA_DIR` points at; the worker does the rest. Nothing is
   scheduled by the app yet; a cron can call `pnpm jobs:once` after

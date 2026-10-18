@@ -46,29 +46,36 @@ export async function withTenant<T>(
   });
 }
 
-let appDb: Db | undefined;
-let adminDb: Db | undefined;
+/**
+ * One pool per process, kept on globalThis: in development every hot
+ * reload re-evaluates this module, and a module-level variable would
+ * leave the previous pool open each time (a day of editing exhausted
+ * Postgres's 100 connections). DB_POOL_MAX sizes it (default 10 for the
+ * web app; the worker passes its own).
+ */
+const pools = globalThis as unknown as { __oemAppDb?: Db; __oemAdminDb?: Db };
+const poolMax = () => Number(process.env.DB_POOL_MAX ?? 10) || 10;
 
 /** Connection for user-facing code. Row-level security applies. */
 export function getAppDb(): Db {
-  if (!appDb) {
+  if (!pools.__oemAppDb) {
     const url = process.env.DATABASE_URL_APP;
     if (!url) throw new Error("DATABASE_URL_APP is not set");
     assertNotDefaultPassword(url, "DATABASE_URL_APP");
-    appDb = createDb(url);
+    pools.__oemAppDb = createDb(url, { max: poolMax() });
   }
-  return appDb;
+  return pools.__oemAppDb;
 }
 
 /** Connection for migrations, seeds and loaders. Bypasses row-level security. */
 export function getAdminDb(): Db {
-  if (!adminDb) {
+  if (!pools.__oemAdminDb) {
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error("DATABASE_URL is not set");
     assertNotDefaultPassword(url, "DATABASE_URL");
-    adminDb = createDb(url);
+    pools.__oemAdminDb = createDb(url, { max: poolMax() });
   }
-  return adminDb;
+  return pools.__oemAdminDb;
 }
 
 /**

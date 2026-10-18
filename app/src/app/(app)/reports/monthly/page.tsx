@@ -9,11 +9,13 @@ import { PrintButton } from "@/components/console/print-button";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtHours, fmtNumber, fmtRate } from "@/console/format";
+import { fmtHours, fmtMonth, fmtNumber, fmtPeriod, fmtRate } from "@/console/format";
 import { buildMonthlyReport, type CategoryRow, type MonthRow } from "@/console/reports";
 import { getAppDb } from "@/db";
 import { label, t } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { canSee } from "@/auth/screens";
+import { NotAllowed } from "@/components/console/not-allowed";
 
 export const metadata = { title: t("reports.monthly") };
 
@@ -35,9 +37,9 @@ async function Monthly({ searchParams }: Pick<PageProps<"/reports/monthly">, "se
   const from = valid(one(params.from));
   const to = valid(one(params.to));
   const viewer = await requireViewer();
+  if (!canSee(viewer.roleAt(), "reports")) return <NotAllowed />;
   const r = await buildMonthlyReport(getAppDb(), viewer.scoped, { from, to });
   const exportHref = (format: string) => `/reports/monthly/export?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}), format })}`;
-  const monthName = (m: string) => new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric" }).format(new Date(`${m}-01T12:00:00Z`));
   const noRoomNights = r.totals.roomNights === 0;
 
   return (
@@ -45,7 +47,7 @@ async function Monthly({ searchParams }: Pick<PageProps<"/reports/monthly">, "se
       <PageHeader
         crumbs={[{ label: t("reports.title"), href: "/reports" }, { label: t("reports.monthly") }]}
         title={`${r.property.name} · ${t("reports.monthly")}`}
-        description={`${t("reports.period", { from: r.season.from, to: r.season.to })} · ${int(r.totals.records)} ${t("reports.columns.records").toLowerCase()} · ${int(r.totals.issuesOpened)} ${t("reports.columns.opened").toLowerCase()}${noRoomNights ? ` · ${t("reports.noRoomNights")}` : ""}`}
+        description={`${fmtPeriod(r.season.from, r.season.to)} · ${int(r.totals.records)} ${t("reports.columns.records").toLowerCase()} · ${int(r.totals.issuesOpened)} ${t("reports.columns.opened").toLowerCase()}${noRoomNights ? ` · ${t("reports.noRoomNights")}` : ""}`}
         actions={
           <>
             <PrintButton />
@@ -81,7 +83,7 @@ async function Monthly({ searchParams }: Pick<PageProps<"/reports/monthly">, "se
                 </TableHeader>
                 <TableBody>
                   {r.months.map((m) => (
-                    <MonthTr key={m.month} row={m} name={monthName(m.month)} />
+                    <MonthTr key={m.month} row={m} name={fmtMonth(m.month)} />
                   ))}
                   <MonthTr row={r.totals} name={t("reports.season")} total />
                 </TableBody>

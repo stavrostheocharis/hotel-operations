@@ -1,12 +1,12 @@
 "use server";
 
 import { refresh } from "next/cache";
-import { AuthorizationError } from "@/auth/permissions";
 import { requireViewer } from "@/auth/viewer";
 import { getAppDb } from "@/db";
 import { t } from "@/i18n";
 import type { ActionResult } from "./issue-actions";
 import { addAlias, createLocation, mapSpelling, removeAlias, renameLocation, setServes } from "./location-admin";
+import { failureMessage } from "./action-errors";
 
 const str = (fd: FormData, k: string) => {
   const v = fd.get(k);
@@ -19,8 +19,7 @@ async function run(fn: () => Promise<string>): Promise<ActionResult> {
     refresh();
     return { ok: true, message, at: Date.now() };
   } catch (err) {
-    if (err instanceof AuthorizationError) return { ok: false, message: t("common.notAllowed"), at: Date.now() };
-    return { ok: false, message: err instanceof Error ? err.message : String(err), at: Date.now() };
+    return { ok: false, message: failureMessage(err), at: Date.now() };
   }
 }
 

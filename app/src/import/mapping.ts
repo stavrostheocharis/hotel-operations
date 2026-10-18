@@ -17,6 +17,8 @@ export type FileMapping = {
   fields: Record<string, string[]>;
   /** Dates are day-first unless the reality check saw otherwise. */
   monthFirst: boolean;
+  /** The date fields the check read as month-first; the others follow `monthFirst`. Decided per column, not per file. */
+  monthFirstFields?: string[];
   /** Columns the reality check flagged as a person's identity: dropped from `raw`, never mapped. */
   drop?: string[];
 };
@@ -34,8 +36,10 @@ export function mappingFromReport(report: RealityReport): ImportMapping {
     if (!LOADABLE.includes(f.dataset) || f.lowConfidence) continue;
     const fields: Record<string, string[]> = {};
     for (const m of f.fields) if (m.method !== "missing" && m.columns.length) fields[m.field] = m.columns;
-    const monthFirst = f.dateFormats.some((d) => /^M/.test(d.format) && !/^MMM/.test(d.format));
-    files.push({ path: f.path, dataset: f.dataset, fields, monthFirst, ...(f.identityColumns.length ? { drop: [...f.identityColumns] } : {}) });
+    const isMonthFirst = (format: string) => /^M/.test(format) && !/^MMM/.test(format);
+    const monthFirst = f.dateFormats.some((d) => isMonthFirst(d.format));
+    const monthFirstFields = [...new Set(f.dateFormats.filter((d) => d.field && isMonthFirst(d.format)).map((d) => d.field!))];
+    files.push({ path: f.path, dataset: f.dataset, fields, monthFirst, ...(f.dateFormats.some((d) => d.field) ? { monthFirstFields } : {}), ...(f.identityColumns.length ? { drop: [...f.identityColumns] } : {}) });
   }
   return { version: "import-mapping-v1", files };
 }

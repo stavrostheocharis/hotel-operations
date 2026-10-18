@@ -19,6 +19,8 @@ import { getAppDb } from "@/db";
 import { label, t } from "@/i18n";
 import { latestJobs } from "@/jobs/queries";
 import type { JobView } from "@/jobs/types";
+import { canSee } from "@/auth/screens";
+import { NotAllowed } from "@/components/console/not-allowed";
 
 export const metadata = { title: t("imports.title") };
 
@@ -35,6 +37,7 @@ export default function ImportsPage() {
 
 async function Content() {
   const viewer = await requireViewer();
+  if (!canSee(viewer.roleAt(), "imports")) return <NotAllowed />;
   const db = getAppDb();
   const [batches, last, jobs] = await Promise.all([listBatches(db, viewer.scoped), lastImport(db, viewer.scoped), latestJobs(db, viewer.scoped)]);
   const tz = viewer.property.timezone;
@@ -79,7 +82,7 @@ async function Content() {
                         <Link href={`/imports/${b.id}`} className="text-body-strong text-foreground hover:underline focus-visible:shadow-focus focus-visible:outline-none">
                           {fmtDateTime(b.createdAt, tz)}
                         </Link>
-                        <div className="text-caption text-muted-foreground">{b.source === "folder" ? b.dir.split("/").slice(-2).join("/") : t("imports.upload.title")}</div>
+                        <div className="text-caption text-muted-foreground">{b.source === "folder" ? (b.dir.split("/").filter(Boolean).at(-1) ?? "") : t("imports.upload.title")}</div>
                       </TableCell>
                       <TableCell className="hidden text-body text-muted-foreground md:table-cell">{t("imports.batch.files", { n: b.files.length, size: fmtBytes(b.bytes) })}</TableCell>
                       <TableCell>

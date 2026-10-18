@@ -6,9 +6,9 @@ import { redirect } from "next/navigation";
 import { safeReturnPath } from "./return-path";
 import { getAppDb } from "@/db";
 import { t } from "@/i18n";
-import { verifyPassword } from "./password";
+import { hashPassword, passwordProblem, verifyPassword } from "./password";
 import { hashToken, newSessionToken, PROPERTY_COOKIE, SESSION_COOKIE, SESSION_DAYS, sessionCookieOptions } from "./session";
-import { getViewer } from "./viewer";
+import { getViewer, requireViewer } from "./viewer";
 
 export type SignInState = { error: string | null };
 
@@ -83,4 +83,33 @@ export async function switchProperty(formData: FormData): Promise<void> {
   if (!viewer || !viewer.properties.some((p) => p.id === id)) return;
   (await cookies()).set(PROPERTY_COOKIE, id, { ...sessionCookieOptions(new Date(Date.now() + 365 * 86_400_000)), httpOnly: true });
   redirect("/today");
+}
+
+export type PasswordState = { ok: boolean; message: string; at: number } | null;
+
+/**
+ * "Change password" from the user menu: the current password must match,
+ * the new one must pass the policy. auth_set_password signs every session
+ * of the user out, so this one is re-issued in the same call.
+ */
+export async function changePasswordAction(_prev: PasswordState, formData: FormData): Promise<PasswordState> {
+  const viewer = await requireViewer();
+  const current = String(formData.get("current") ?? "");
+  const next = String(formData.get("next") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+  if (next !== confirm) return { ok: false, message: t("user.password.mismatch"), at: Date.now() };
+  const problem = passwordProblem(next);
+  if (problem) return { ok: false, message: problem, at: Date.now() };
+  const db = getAppDb();
+  const [cred] = await db.execute<{ user_id: string; password_hash: string }>(sql`select * from auth_credentials(${viewer.user.email})`);
+  if (!cred || cred.user_id !== viewer.user.id || !(await verifyPassword(current, cred.password_hash))) {
+    return { ok: false, message: t("user.password.wrong"), at: Date.now() };
+  }
+  await db.execute(sql`select auth_set_password(${viewer.user.id}, ${await hashPassword(next)})`);
+  const token = newSessionToken();
+  const expires = new Date(Date.now() + SESSION_DAYS * 86_400_000);
+  const userAgent = (await headers()).get("user-agent")?.slice(0, 200) ?? null;
+  await db.execute(sql`select auth_create_session(${viewer.user.id}, ${hashToken(token)}, ${expires.toISOString()}::timestamptz, ${userAgent})`);
+  (await cookies()).set(SESSION_COOKIE, token, sessionCookieOptions(expires));
+  return { ok: true, message: t("user.password.saved"), at: Date.now() };
 }

@@ -41,10 +41,10 @@ export function monthFromName(name: string): number | null {
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const ISO_DATETIME = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/;
 const ISO_ZONED = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
-const SLASH = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/;
+const SLASH = /^(\d{1,2})\/(\d{1,2})\/(\d{4}|\d{2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/;
 const SLASH_YEAR_FIRST = /^(\d{4})\/(\d{1,2})\/(\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?$/;
-const DOT = /^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:[ T,]*(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/;
-const DASH = /^(\d{1,2})-(\d{1,2})-(\d{4})(?:[ T](\d{1,2}):(\d{2}))?$/;
+const DOT = /^(\d{1,2})\.(\d{1,2})\.(\d{4}|\d{2})(?:[ T,]*(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/;
+const DASH = /^(\d{1,2})-(\d{1,2})-(\d{4}|\d{2})(?:[ T](\d{1,2}):(\d{2}))?$/;
 const MONTH_YEAR = /^(\p{L}+)\.?\s+(\d{4})$/u;
 const YEAR_MONTH = /^(\d{4})-(\d{2})$/;
 const MONTH_SLASH_YEAR = /^(\d{1,2})\/(\d{4})$/;
@@ -93,9 +93,12 @@ export function classifyDate(value: string, monthFirst = false): DateHit | null 
       const b = +m[2];
       const evidence = a > 12 ? "day-first" : b > 12 ? "month-first" : null;
       const dayFirst = evidence ? evidence === "day-first" : !monthFirst;
-      const p = make(+m[3], dayFirst ? b : a, dayFirst ? a : b, m[4] ? +m[4] : 0, m[5] ? +m[5] : 0);
+      // "15/07/26": a two-digit year is this century
+      const year = m[3].length === 2 ? 2000 + +m[3] : +m[3];
+      const p = make(year, dayFirst ? b : a, dayFirst ? a : b, m[4] ? +m[4] : 0, m[5] ? +m[5] : 0);
       const time = m[4] ? " HH:MM" : "";
-      const format = dayFirst ? `DD${sep}MM${sep}YYYY${time}` : `MM${sep}DD${sep}YYYY${time}`;
+      const yy = m[3].length === 2 ? "YY" : "YYYY";
+      const format = dayFirst ? `DD${sep}MM${sep}${yy}${time}` : `MM${sep}DD${sep}${yy}${time}`;
       return p && { format, parts: p, dayFirstEvidence: evidence };
     }
   }

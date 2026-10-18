@@ -21,6 +21,7 @@ import { countIssueViews, ISSUE_SORTS, ISSUE_VIEWS, queryIssues, type IssueSort,
 import { getAppDb, schema } from "@/db";
 import { label, t } from "@/i18n";
 import { CATEGORIES } from "@/normalize/taxonomy";
+import { categoryLabel } from "@/console/format";
 
 export const metadata = { title: t("exceptions.title") };
 
@@ -72,15 +73,13 @@ async function Queue({ searchParams }: Pick<PageProps<"/exceptions">, "searchPar
     return `/exceptions${s ? `?${s}` : ""}`;
   };
   const departments = schema.department.enumValues.map((d) => ({ value: d, label: label("user.department", d) }));
-  const categories = CATEGORIES.map((c) => ({ value: c, label: c.replace(/_/g, " ") }));
+  const categories = CATEGORIES.map((c) => ({ value: c, label: label("category", c) }));
   const sorts = ISSUE_SORTS.map((s) => ({ value: s, label: label("exceptions.sort", s) }));
-  const canAssign = viewer.can("issue.assign");
-  const canSchedule = viewer.can("verification.schedule");
 
   return (
     <>
       <ViewTabs active={view} tabs={ISSUE_VIEWS.map((v) => ({ key: v, label: label("exceptions.views", v), count: counts[v], href: hrefFor(v) }))} />
-      <FilterBar departments={departments} categories={categories} sorts={sorts} />
+      <FilterBar key={keep.toString()} departments={departments} categories={categories} sorts={sorts} />
       {result.rows.length === 0 ? (
         q ? (
           <EmptyState icon={<SearchXIcon />} title={t("exceptions.empty.search", { q })} body={t("exceptions.empty.searchHint")} action={<Button variant="secondary" render={<Link href="/exceptions" />}>{t("exceptions.toolbar.clear")}</Button>} />
@@ -110,7 +109,7 @@ async function Queue({ searchParams }: Pick<PageProps<"/exceptions">, "searchPar
                         {r.title}
                       </Link>
                       <div className="text-caption text-muted-foreground">
-                        {[r.parentName && r.locationKind === "room" ? `${r.parentName} › ${r.locationCode}` : r.locationName ? `${r.locationName}${r.locationKind !== "room" ? ` (${r.locationKind})` : ""}` : null, r.category?.replace(/_/g, " ") ?? "unclassified"]
+                        {[r.parentName && r.locationKind === "room" ? `${r.parentName} › ${r.locationCode}` : r.locationName ? `${r.locationName}${r.locationKind !== "room" ? ` (${r.locationKind})` : ""}` : null, categoryLabel(r.category)]
                           .filter(Boolean)
                           .join(" · ")}
                       </div>
@@ -139,8 +138,8 @@ async function Queue({ searchParams }: Pick<PageProps<"/exceptions">, "searchPar
                         issue={{ id: r.id, title: r.title, status: r.status, category: r.category, severity: r.severity, department: r.department, ownerUserId: r.ownerUserId, ownerName: r.ownerName }}
                         users={users}
                         departments={departments}
-                        canAssign={canAssign}
-                        canSchedule={canSchedule}
+                        canAssign={viewer.can("issue.assign", { department: r.department as never, ownerUserId: r.ownerUserId })}
+                        canSchedule={viewer.can("verification.schedule", { department: r.department as never, ownerUserId: r.ownerUserId })}
                       />
                     </TableCell>
                   </TableRow>

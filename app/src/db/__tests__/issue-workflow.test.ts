@@ -4,7 +4,8 @@ import { createDb, schema, type Db, type TenantContext } from "../index";
 import { findProperty } from "../scripts/seed";
 import { AuthorizationError, type Actor } from "@/auth/permissions";
 import { listAssignableUsers } from "@/console/issue-detail";
-import { addIssueNote, assignIssue, changeIssueStatus, recordOutcome, resolveIssue } from "@/console/issue-workflow";
+import { addIssueNote, assignIssue, changeIssueStatus, editIssue, recordOutcome, resolveIssue } from "@/console/issue-workflow";
+import { scheduleVerification } from "@/console/verification";
 import { getIssue, listIssues } from "@/console/queries";
 import { linkSignals } from "@/link/pipeline";
 import { createFakeLlm } from "@/normalize/llm";
@@ -121,6 +122,39 @@ describe("issue workflow", () => {
     const after = (await getIssue(app, ctx, a.id))!;
     expect(after.outcomes.some((o) => o.kind === "staff_evidence")).toBe(true);
     expect(after.status).toBe("verified");
+  });
+
+  it("keeps a person's title, severity and resolved date through a rebuild", async () => {
+    const target = await pickReopened(3);
+    await editIssue(app, ctx, gm, { issueId: target.id, title: "Boiler room valve, Sea Wing", severity: "critical" });
+    await resolveIssue(app, ctx, gm, { issueId: target.id, note: "Valve replaced." });
+    let issue = (await getIssue(app, ctx, target.id))!;
+    expect(issue.status).toBe("resolved");
+    expect(issue.resolvedAt).not.toBeNull();
+    const resolvedAt = issue.resolvedAt!.getTime();
+    await relink();
+    issue = (await getIssue(app, ctx, target.id))!;
+    expect(issue.title).toBe("Boiler room valve, Sea Wing");
+    expect(issue.severity).toBe("critical");
+    expect(issue.status).toBe("resolved");
+    expect(issue.resolvedAt?.getTime()).toBe(resolvedAt);
+    // the rebuild still owns what nobody edited
+    expect(issue.derivedStatus).not.toBe("resolved");
+  });
+
+  it("an open check keeps an otherwise untouched issue, and the check, alive through a rebuild", async () => {
+    const tenant = { groupId, propertyId };
+    const [withCheck] = await admin
+      .insert(schema.issues)
+      .values({ ...tenant, title: "manual · check scheduled", status: "detected", derivedStatus: "detected", openedAt: new Date() })
+      .returning({ id: schema.issues.id });
+    const task = await scheduleVerification(app, ctx, gm, { issueId: withCheck.id, dueAt: new Date(Date.now() + 86_400_000), instructions: "Look at 263 on Thursday." });
+    await relink();
+    const [kept] = await admin.select({ supersededAt: schema.issues.supersededAt }).from(schema.issues).where(eq(schema.issues.id, withCheck.id));
+    expect(kept).toBeDefined();
+    expect(kept.supersededAt).not.toBeNull();
+    const [t] = await admin.select({ status: schema.verificationTasks.status }).from(schema.verificationTasks).where(eq(schema.verificationTasks.id, task.id));
+    expect(t?.status).toBe("open");
   });
 
   it("supersedes a touched issue nothing matched and deletes an untouched one", async () => {

@@ -21,6 +21,8 @@ export type SignalRow = {
   topic: string | null;
   category: string | null;
   text: string | null;
+  /** False while a non-English record waits for the model. */
+  translated: boolean;
   issueId: string | null;
   issueTitle: string | null;
   issueStatus: string | null;
@@ -95,13 +97,14 @@ export async function listSignals(db: Db, ctx: TenantContext, p: SignalQuery): P
       topic: string | null;
       category: string | null;
       text: string | null;
+      translated: boolean;
       issue_id: string | null;
       issue_title: string | null;
       issue_status: string | null;
       total: number;
     }>(sql`
       select s.id, s.source::text as source, s.external_id, s.occurred_at, s.language, l.code as location_code, l.name as location_name,
-             s.topic, s.category, coalesce(s.text_en, s.text_original) as text,
+             s.topic, s.category, coalesce(s.text_en, s.text_original) as text, (s.text_en is not null) as translated,
              m.issue_id, i.title as issue_title, i.status::text as issue_status, count(*) over ()::int as total
       ${BASE}
       where ${where}
@@ -123,6 +126,7 @@ export async function listSignals(db: Db, ctx: TenantContext, p: SignalQuery): P
         topic: r.topic,
         category: r.category,
         text: r.text,
+        translated: Boolean(r.translated),
         issueId: r.issue_id,
         issueTitle: r.issue_title,
         issueStatus: r.issue_status,
@@ -217,6 +221,7 @@ export async function getSignal(db: Db, ctx: TenantContext, id: string): Promise
       topic: r.topic,
       category: r.category,
       text: r.text_en ?? r.text_original,
+      translated: r.text_en !== null,
       textEn: r.text_en,
       textOriginal: r.text_original,
       lockedFields: r.locked_fields ?? [],

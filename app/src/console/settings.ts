@@ -17,12 +17,18 @@ export type UserRow = {
   propertyRole: Role | null;
 };
 
-export async function listUsers(db: Db, ctx: TenantContext, propertyId: string): Promise<UserRow[]> {
+/**
+ * The people of this property: everyone with a membership here, plus the
+ * group admins (who have access everywhere). A group admin asking with
+ * `everyone` sees the whole group, members elsewhere included.
+ */
+export async function listUsers(db: Db, ctx: TenantContext, propertyId: string, opts: { everyone?: boolean } = {}): Promise<UserRow[]> {
   return withTenant(db, ctx, async (tx) => {
     const rows = await tx.execute<{ id: string; email: string; name: string; role: Role; department: string | null; is_active: boolean; last_login_at: Date | null; member: boolean; property_role: Role | null }>(sql`
       select u.id, u.email, u.name, u.role::text as role, u.department::text as department, u.is_active, u.last_login_at,
              (m.id is not null) as member, m.role::text as property_role
       from users u left join memberships m on m.user_id = u.id and m.property_id = ${propertyId}
+      where ${opts.everyone ? sql`true` : sql`(m.id is not null or u.role = 'group_admin')`}
       order by u.is_active desc, u.name
     `);
     return rows
@@ -44,4 +50,20 @@ export function isTimezone(tz: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Whether a user is someone this property's management may act on: a
+ * member here, or a group admin (whom only a group admin may touch, which
+ * `settings.users` checks separately). Group admins act on the whole group.
+ */
+export async function userInScope(db: Db, ctx: TenantContext, propertyId: string, userId: string, groupWide: boolean): Promise<boolean> {
+  if (groupWide) return true;
+  return withTenant(db, ctx, async (tx) => {
+    const [r] = await tx.execute<{ ok: boolean }>(sql`
+      select exists (select 1 from memberships where user_id = ${userId} and property_id = ${propertyId})
+          or exists (select 1 from users where id = ${userId} and role = 'group_admin') as ok
+    `);
+    return Boolean(r?.ok);
+  });
 }

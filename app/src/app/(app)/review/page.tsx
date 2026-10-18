@@ -12,6 +12,8 @@ import { fmtDateTime } from "@/console/format";
 import { listDecidedPairs, listReviewPairs } from "@/console/review";
 import { getAppDb } from "@/db";
 import { label, t } from "@/i18n";
+import { canSee } from "@/auth/screens";
+import { NotAllowed } from "@/components/console/not-allowed";
 
 export const metadata = { title: t("review.title") };
 
@@ -28,6 +30,7 @@ export default function ReviewPage() {
 
 async function Queue() {
   const viewer = await requireViewer();
+  if (!canSee(viewer.roleAt(), "review")) return <NotAllowed />;
   const db = getAppDb();
   const tz = viewer.property.timezone;
   const [{ pairs, total }, recent] = await Promise.all([listReviewPairs(db, viewer.scoped, { limit: 1 }), listDecidedPairs(db, viewer.scoped, 10)]);

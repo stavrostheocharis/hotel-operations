@@ -19,8 +19,11 @@ import { fmtBytes, fmtDateTime } from "@/console/format";
 import { getBatch, type BatchDetail } from "@/console/imports";
 import { getAppDb } from "@/db";
 import { label, t } from "@/i18n";
+import { cn } from "@/lib/utils";
 import { getJob } from "@/jobs/queries";
 import type { JobView } from "@/jobs/types";
+import { canSee } from "@/auth/screens";
+import { NotAllowed } from "@/components/console/not-allowed";
 
 export const metadata = { title: t("imports.batch.title") };
 
@@ -55,6 +58,7 @@ function stepOf(batch: BatchDetail, job: JobView | null): { current: StepKey | "
 async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">) {
   const { batchId } = await params;
   const viewer = await requireViewer();
+  if (!canSee(viewer.roleAt(), "imports")) return <NotAllowed />;
   const db = getAppDb();
   const batch = await getBatch(db, viewer.scoped, batchId);
   if (!batch) notFound();
@@ -77,7 +81,7 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
           <>
             {t("imports.batch.files", { n: batch.files.length, size: fmtBytes(batch.bytes) })}
             {batch.createdByName ? ` · ${t("jobs.by", { name: batch.createdByName })}` : ""}
-            {batch.source === "folder" ? ` · ${batch.dir}` : ""}
+            {batch.source === "folder" ? ` · ${batch.dir.split("/").filter(Boolean).at(-1) ?? ""}` : ""}
           </>
         }
         actions={
@@ -134,6 +138,7 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
                   <TableHead className="text-right">{t("imports.loadedColumns.inserted")}</TableHead>
                   <TableHead className="text-right">{t("imports.loadedColumns.updated")}</TableHead>
                   <TableHead className="text-right">{t("imports.loadedColumns.skipped")}</TableHead>
+                  <TableHead className="text-right">{t("imports.loadedColumns.rejected")}</TableHead>
                   <TableHead className="hidden text-right md:table-cell">{t("imports.loadedColumns.located")}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -145,6 +150,9 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
                     <TableCell className="text-right tabular-nums">{s.inserted.toLocaleString("en-GB")}</TableCell>
                     <TableCell className="text-right tabular-nums">{(s.updated ?? 0).toLocaleString("en-GB")}</TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">{s.skipped.toLocaleString("en-GB")}</TableCell>
+                    <TableCell className={cn("text-right tabular-nums", rejectedOf(batch, source) ? "text-warning" : "text-muted-foreground")} title={rejectedReasons(batch, source)}>
+                      {rejectedOf(batch, source).toLocaleString("en-GB")}
+                    </TableCell>
                     <TableCell className="hidden text-right tabular-nums text-muted-foreground md:table-cell">{s.located.toLocaleString("en-GB")}</TableCell>
                   </TableRow>
                 ))}
@@ -169,7 +177,7 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
           {canImport && (batch.status === "checked" || batch.status === "failed") && !jobActive ? (
             <Card>
               <CardContent>
-                <LoadButton batchId={batch.id} verdict={batch.verdict} canOverride={viewer.can("settings.users")} modelAvailable={Boolean(process.env.OPENAI_API_KEY)} />
+                <LoadButton batchId={batch.id} verdict={batch.verdict} canOverride={viewer.can("imports.override")} modelAvailable={Boolean(process.env.OPENAI_API_KEY)} />
               </CardContent>
             </Card>
           ) : null}
@@ -198,4 +206,12 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
       ) : null}
     </>
   );
+}
+
+function rejectedOf(batch: BatchDetail, source: string): number {
+  return Object.values(batch.counts?.rejected?.[source] ?? {}).reduce((n, v) => n + v, 0);
+}
+function rejectedReasons(batch: BatchDetail, source: string): string | undefined {
+  const r = batch.counts?.rejected?.[source];
+  return r && Object.keys(r).length ? Object.entries(r).map(([k, v]) => `${k}: ${v}`).join(" · ") : undefined;
 }

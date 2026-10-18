@@ -1,4 +1,7 @@
 import type { AuditReport, RecurringFailure } from "./types";
+import { categoryLabel } from "@/console/format";
+import { label as dictLabel } from "@/i18n";
+import { CATEGORIES } from "@/normalize/taxonomy";
 
 /**
  * The written report, as Markdown. Section order follows the offer
@@ -171,15 +174,8 @@ export function renderWinterWorksCsv(r: AuditReport): string {
 
 // ---------------------------------------------------------------------------
 
-export const SOURCE: Record<string, string> = {
-  work_order: "tickets",
-  front_desk: "desk complaints",
-  survey: "surveys",
-  review: "reviews",
-  staff_report: "staff reports",
-  guest_qr: "guest messages",
-  compensation: "compensations",
-};
+/** Source names as the console shows them (one dictionary for screens and the memo). */
+export const SOURCE: Record<string, string> = Object.fromEntries(["work_order", "front_desk", "survey", "review", "staff_report", "guest_qr", "pms", "compensation"].map((k) => [k, dictLabel("source", k)]));
 
 export const LANGUAGE: Record<string, string> = {
   en: "English",
@@ -193,8 +189,10 @@ export const LANGUAGE: Record<string, string> = {
   unknown: "undetected",
 };
 
+/** A topic in words, or the category as the console names it. */
 export function label(s: string | null): string {
-  return s ? s.replace(/_/g, " ") : "unclassified";
+  if (!s) return categoryLabel(null);
+  return (CATEGORIES as readonly string[]).includes(s) ? categoryLabel(s) : s.replace(/_/g, " ");
 }
 
 export function where(f: RecurringFailure): string {

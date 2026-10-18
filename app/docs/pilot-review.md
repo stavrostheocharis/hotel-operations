@@ -13,9 +13,11 @@ re-import, guest identity, the job worker and the deployment itself each
 need work before the first client file goes in. None of it is large; most
 of section A is a few days.
 
-**Status.** The six blockers of section A are fixed on branch
-`pilot-blockers`, one commit each, with the fix noted under each item.
-Section B and C stand as written.
+**Status.** The six blockers of section A are fixed (branch
+`pilot-blockers`, merged). Section B is worked through on branch
+`pilot-before` in seven commits, with the fix noted under each item; what
+stays open from B is the reality check running inline in the web process
+(moved to section C). Section C stands as written.
 
 ## A. Blockers: change before any real data goes in
 
@@ -117,6 +119,10 @@ Data and rebuilds
   (`src/link/persist.ts:245-262`); the status itself survives. Deleting an
   "untouched" unclaimed issue cascades to its open verification tasks
   (`humanState` ignores tasks, `persist.ts:130,171`).
+  **Fixed on `pilot-before`:** fields named in `issue.edited` keep the
+  person's value, the resolved date stays while a person's status stands,
+  and an open check marks its issue as touched (superseded, never
+  deleted). Tests in `issue-workflow.test.ts`.
 - A dead worker leaves the batch `loading` (only Discard and re-upload);
   marking a live job failed lets a second rebuild start concurrently;
   final status and heartbeat writes are unconditional; a 100 MB CSV parsed
@@ -127,12 +133,25 @@ Data and rebuilds
   column drops rows silently. `monthFirst` is decided per file, not per
   column; two-digit years are dropped; unparsed naive dates fall back to
   the server's zone. Room codes collide across buildings.
+  **Fixed on `pilot-before`:** `stableKey()` over date, place and text;
+  `validateMapping` at load, rows rejected counted per reason and shown
+  as "Not loaded"; month-first per field; two-digit years; no runtime
+  fallback for naive dates; room numbers prefixed with the building when
+  they repeat, a kind suffix when a facility and an equipment share a code.
 - The reality check and the upload run inside the web process over whole
   files in memory; PaaS request limits will cut them.
+  **Partly fixed on `pilot-before`:** the upload refuses an oversized body
+  from its `content-length` before reading it. The check itself still runs
+  inline (a hotel's season is thousands of rows, not hundreds of
+  thousands); moving it to the worker stays in section C.
 - Translations: the demo DB was normalised rules-only, so 1,780 of 3,330
   text records show in German, Greek, French or Italian with no marker
   (`coalesce(text_en, text_original)`). Run normalisation with the model
   before the pilot and show "not translated" when `text_en` is null.
+  **Fixed on `pilot-before`:** every record view says "Not translated yet"
+  when a non-English record has no English text; the wizard's model switch
+  is on whenever a key exists; `docs/deploy.md` tells the operator to run
+  normalisation with the model before the pilot.
 
 Roles and gating
 
@@ -141,6 +160,9 @@ Roles and gating
   errors), the memo and the audit JSON by URL. `docs/auth.md` says every
   role sees every screen; the nav says otherwise. Pick one and enforce it
   on the page.
+  **Fixed on `pilot-before`:** the sidebar map is the boundary
+  (`canSee`), every gated page and route enforces it, and `docs/auth.md`
+  now says who sees what.
 - Read-only and non-engineering department heads get full forms, just
   disabled; Exceptions shows "Assign…" on rows the server will refuse
   (`exceptions/page.tsx:77` checks without department context); the Users
@@ -148,12 +170,24 @@ Roles and gating
   anyway" is gated on `settings.users` while the copy says group admin
   only; "Import the demo folder" appears for a real GM whenever `data/out`
   exists on the server, with no confirmation.
+  **Fixed on `pilot-before`:** read-only summaries instead of disabled
+  forms, tabs only for what the role may open, Assign… per row with the
+  department and owner the server checks, no self-actions in Users, a
+  group-admin-only `imports.override`, the placeholder button only for
+  roles that may write; the demo-folder card already depends on
+  `DATA_DIR` and its copy no longer mentions the generator.
 - A GM can administer every user in the group, not only their property
   (`loadTarget` by id under group-scoped RLS); matters only with more than
   one property. No self-service password change, so admins know every
   password.
+  **Fixed on `pilot-before`:** a GM sees and acts on this property's
+  members and the group admins only (`userInScope`); "Change password…"
+  in the user menu.
 - Raw `Error.message` strings and absolute server paths reach toasts and
   pages for every role.
+  **Fixed on `pilot-before`:** library errors are logged and replaced by
+  one sentence (`failureMessage`); batch pages show the folder's name,
+  not its path.
 
 Dead ends in the UI
 
@@ -161,13 +195,25 @@ Dead ends in the UI
   no pending state, no toast, and `decideLink` throws instead of returning
   a result. No `error.tsx` or `not-found.tsx` anywhere, so a stale shared
   link shows Next's default page outside the shell.
+  **Fixed on `pilot-before`:** `LinkDecision` posts through
+  `useActionState` with a pending state and one toast, and `decideLink`
+  returns a result instead of throwing; `(app)/error.tsx`,
+  `(app)/not-found.tsx` and a root `not-found.tsx` speak the dictionary's
+  words inside the shell.
 - Arrow keys inside the Signals drawer move to another record while the
   focus is in a Select or Command list (`record-drawer.tsx:34-42`); the
   Review keys S/N/K fire from any focused button.
+  **Fixed on `pilot-before`:** both listeners ignore keys aimed at a
+  control (inputs, selects, buttons, lists, menus, comboboxes, dialogs) and
+  modifier combinations; the drawer prevents the page scroll.
 - "Clear filters" leaves the old text in the boxes and drops the current
   view; "Copy link" throws on an http:// LAN deployment (no clipboard
   outside secure contexts, no fallback); the Review "Undo" result is
   discarded.
+  **Fixed on `pilot-before`:** the filter bars remount on every URL change
+  (so Clear empties the boxes) and Clear keeps `?view=`; Copy link falls
+  back to the old copy command and, failing that, shows the link to select;
+  Undo reports its result.
 
 Infrastructure
 
@@ -175,6 +221,8 @@ Infrastructure
   created a new pool and the dev database hit 100 connections during this
   review (97 idle). Guard with `globalThis` in development, size `max` for
   the web and worker processes, consider pgbouncer.
+  **Fixed on `pilot-before`:** one pool per process on `globalThis`, sized
+  by `DB_POOL_MAX`; the worker keeps its own `max: 3`.
 
 Words
 
@@ -189,12 +237,31 @@ Words
   developer ("as the generator wrote it", "generated {date} · {version}").
   The settings hint promises "shown on Today when they are late" for the
   export time; Today does not do that.
+  **Fixed on `pilot-before` (the late line):** Today says "the export
+  expected at 06:10 has not arrived yet" once that time has passed in the
+  property's zone with no import since (`isExportLate`).
+  **Fixed on `pilot-before` (the words):** categories are named from the
+  dictionary on every screen and in the memo (`categoryLabel`,
+  `topicLabel`); one word each for a check, a record and a place; "Closed
+  unverified" and "Mark resolved" everywhere; no engine, worker, embedding
+  or linking run on a hotel screen (matching run, background service,
+  similarity index); the check's verdicts read "Ready to load / Needs
+  reshaping / Not loadable" and its colours "Good / Watch / Poor"; relative
+  times, metadata titles, the tree's expand/collapse, "owner",
+  "unclassified", "language by", "moved from" and the dialogs' Close come
+  from the dictionary; dates: "12 Jul" in the current year, "12 Jul 2025"
+  otherwise, "1 Apr 2026 – 31 Oct 2026" for periods, "Apr 2026" for months,
+  no raw ISO on any screen; the developer notes left the copy.
 
 Phones
 
 - Locations stacks the 70 vh tree above the content, so every place page
   opens on the tree; Verifications keeps five no-wrap columns; the batch
   header shows the full server directory path.
+  **Fixed on `pilot-before`:** on a phone the place comes first and the
+  tree (50 vh) waits below it; Checks keeps issue, due and the action on a
+  phone, with the place and instructions under the issue; the batch header
+  shows the folder's name.
 
 ## C. During the pilot: first month
 

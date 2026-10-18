@@ -18,6 +18,7 @@ import { getLocationByCode, getLocationTree, listIssuesAtLocation, listUnlinkedS
 import { getAppDb } from "@/db";
 import { label, t } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { categoryLabel, topicLabel } from "@/console/format";
 
 export const metadata = { title: t("locations.title") };
 
@@ -158,7 +159,7 @@ async function Place({ params, searchParams }: Pick<PageProps<"/locations/[code]
                               </Link>
                               <div className="text-caption text-muted-foreground">
                                 {below && i.locationCode ? `${i.locationCode} · ` : ""}
-                                {i.category?.replace(/_/g, " ") ?? "unclassified"}
+                                {categoryLabel(i.category)}
                               </div>
                             </TableCell>
                             <TableCell>
@@ -195,7 +196,7 @@ async function Place({ params, searchParams }: Pick<PageProps<"/locations/[code]
                             <SourceBadge source={s.source} />
                             <span>{fmtDateTime(s.occurredAt, tz)}</span>
                             {below && s.locationCode ? <span>{s.locationCode}</span> : null}
-                            <span>{(s.topic ?? s.category ?? "").replace(/_/g, " ")}</span>
+                            <span>{topicLabel(s.topic, s.category)}</span>
                           </div>
                           <Link href={`/signals?record=${s.id}`} className="line-clamp-2 text-body text-foreground hover:underline">
                             {s.text ?? "–"}
