@@ -50,6 +50,9 @@ erDiagram
   properties ||--o{ events : logs
   properties ||--o{ ai_suggestions : audits
   properties ||--o{ occupancy_daily : measures
+  properties ||--o{ verification_tasks : schedules
+  properties ||--o{ jobs : runs
+  properties ||--o{ import_batches : receives
 
   signals {
     uuid id PK
@@ -212,6 +215,19 @@ the lifecycle rule above outranks any decision taken before the evidence.
 to any cluster after a person touched it is kept with `superseded_at` and
 `superseded_by_issue_id` rather than deleted.
 
+### Property settings, jobs and imports
+
+`properties.settings` (jsonb, default `{}`) holds what a property tunes
+without code: recurrence windows per category, default departments, the
+expected import time (`docs/app.md`). `jobs` is one row per background run
+(kind, status, params, progress, log, result, heartbeat; one queued or
+running job per kind and property, `docs/jobs.md`); `import_batches` is one
+delivery of a client's exports with its files, the reality-check report and
+verdict, the column mapping and the load counts (`docs/imports.md`).
+Signals carry `ingest_batch_id`, `mapped` (the canonical record keyed by
+catalogue field) and `locked_fields` (what a person set by hand, which the
+normaliser leaves alone).
+
 ## Tenant context (row-level security)
 
 Every tenant table carries `group_id` and `property_id`, and every one of them
@@ -254,7 +270,13 @@ HMAC of the PMS reservation number under `STAY_REF_SECRET`. The mapping back
 lives in `pii.stay_keys`, in its own schema, with no foreign key from `public`,
 no privileges for `app_user`, and a test that proves the app role cannot
 select from it. Nothing else is stored about guests: no names, contacts,
-documents or payment data. Employee performance is not modelled anywhere.
+documents or payment data. Both loaders use the stay's pseudonym as the
+PMS signal's `external_id`, keep the reservation number and nationality out
+of `mapped`, and drop from `raw` the columns behind `stay_key` and
+`assigned_to` plus every column the reality check flagged as identity
+(`FileMapping.drop`). A technician named in a ticket is stored as
+`staff_…`, a keyed pseudonym (`staffRef`), so "the same person" stays the
+same string without the name. Employee performance is not modelled anywhere.
 
 ## What the synthetic loader does (and does not)
 

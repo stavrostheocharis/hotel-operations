@@ -13,7 +13,7 @@ import {
 import { LocationResolver } from "./lib/locations";
 import { dataDir } from "./lib/paths";
 import { parseDmyHm } from "./lib/time";
-import { stayRef } from "./lib/stay-ref";
+import { staffRef, stayRef } from "./lib/stay-ref";
 import { findProperty } from "./seed";
 import { insertSignalsScrubbed } from "@/import/signals";
 
@@ -41,6 +41,14 @@ export type LoadResult = {
  * the seeded hierarchy. Idempotent: existing (property, source, external_id)
  * rows are left untouched.
  */
+/** The synthetic exports name the reservation and the technician; neither reaches `raw`. */
+const IDENTITY_COLUMNS = new Set(["reservation_no", "Technician"]);
+function withoutIdentity(raw: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw)) if (!IDENTITY_COLUMNS.has(k)) out[k] = v;
+  return out;
+}
+
 export async function loadSynthetic(
   db: Db,
   opts: LoadOptions = {},
@@ -99,7 +107,7 @@ export async function loadSynthetic(
         language: null,
         textOriginal: w.description || null,
         category: w.category || null,
-        raw: w.raw,
+        raw: withoutIdentity(w.raw),
         mapped: {
           id: w.externalId,
           created_at: w.occurredAt!.toISOString(),
@@ -109,7 +117,7 @@ export async function loadSynthetic(
           category: w.category || null,
           description: w.description || null,
           closure_note: w.raw["Closure Note"] ?? null,
-          assigned_to: w.raw["Technician"] ?? null,
+          assigned_to: w.raw["Technician"] ? staffRef(property.code, String(w.raw["Technician"])) : null,
           priority: w.raw["Priority"] ?? null,
           reopened: w.raw["Reopened"] || null,
           created_by: w.raw["Reported By"] ?? null,
@@ -172,11 +180,11 @@ export async function loadSynthetic(
       .map((s) => ({
         ...tenant,
         source: "pms" as const,
-        externalId: s.reservationNo,
+        externalId: stayRef(property.code, s.reservationNo),
         occurredAt: s.checkIn!,
         stayRef: stayRef(property.code, s.reservationNo),
-        raw: s.raw,
-        mapped: { stay_key: s.reservationNo, room: s.room, arrival: s.checkIn!.toISOString(), departure: s.checkOut?.toISOString() ?? null },
+        raw: withoutIdentity(s.raw),
+        mapped: { room: s.room, arrival: s.checkIn!.toISOString(), departure: s.checkOut?.toISOString() ?? null },
         ingestBatchId: batchId,
         ...locate(s.room),
       })),
@@ -196,11 +204,10 @@ export async function loadSynthetic(
         language: s.language || null,
         textOriginal: s.comment || null,
         stayRef: stayRef(property.code, s.reservationNo),
-        raw: s.raw,
+        raw: withoutIdentity(s.raw),
         mapped: {
           id: s.externalId,
           submitted_at: s.occurredAt!.toISOString(),
-          stay_key: s.reservationNo,
           overall: s.raw["overall"] ?? null,
           nps: s.raw["nps"] ?? null,
           would_recommend: s.raw["would_recommend"] ?? null,

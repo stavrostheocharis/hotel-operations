@@ -5,26 +5,33 @@ must survive a page reload or a dev-server restart. They run in a detached
 worker process; the console only writes a row and watches it.
 
 ```bash
-pnpm jobs:worker --job <id>     # what the app spawns; handy for a stuck job
+pnpm jobs:worker              # the worker service: run until stopped
+pnpm jobs:worker --once       # drain the queue, then exit (cron, CI)
+pnpm jobs:worker --job <id>   # one job by id
 ```
 
 ## How a job runs
 
 1. A server action (`src/console/import-actions.ts`: `runJobAction`,
    `loadBatchAction`) calls `enqueueJob()` in `src/jobs/runner.ts`. It
-   inserts one `jobs` row under the viewer's tenant (`queued`) and spawns
-   `node tsx src/jobs/worker.ts --job <id>` detached, stdio ignored, then
-   returns. Nothing in the web process waits.
-2. `worker.ts` connects with the admin `DATABASE_URL` and calls `runJob()`
-   in `src/jobs/run.ts`: it claims the row (`queued → running`, pid,
-   `started_at`), writes `job.started`, dispatches by kind, and every five
-   seconds writes `heartbeat_at` plus the log tail and progress
-   (`{ step, done, total, message }`). On the way out it writes
-   `succeeded` with the result or `failed` with the error, and
-   `job.finished`.
+   inserts one `jobs` row under the viewer's tenant (`queued`) and returns.
+   Nothing in the web process does the work. In development only, where
+   nobody runs the service, a one-shot worker is spawned for the row so the
+   wizard still moves (`JOBS_SPAWN=0` turns that off).
+2. The worker service (`src/jobs/worker.ts`, `pnpm jobs:worker`, one or
+   more processes, the migrator connection) polls the table every two
+   seconds and claims the oldest queued row with `FOR UPDATE SKIP LOCKED`
+   (`claimNextJob()`), so two workers never take the same job. It then runs
+   `runClaimed()` in `src/jobs/run.ts`: `job.started`, the kind's work,
+   every five seconds `heartbeat_at` plus the log tail and progress
+   (`{ step, done, total, message }`), then `succeeded` with the result or
+   `failed` with the error and `job.finished`. Every write to the row is
+   conditional on it still being `running`: a job a person marked failed
+   stops at its next log line and never writes over their decision.
 3. The page shows `<JobProgress/>` (`src/components/jobs/job-progress.tsx`),
    which polls `GET /api/jobs/[id]` every two seconds while the job is
-   queued or running and refreshes the page once when it ends.
+   queued or running and refreshes the page once when it ends. A job still
+   queued after two minutes says that no worker seems to be running.
 
 Kinds: `normalize` (`normalizeSignals`), `link` (`linkSignals`), `embed`
 (`embedSignals`), `import` (load a batch, then normalise, then link),
@@ -36,14 +43,20 @@ The model: `params.llm = true` makes the worker build the OpenAI client from
 `OPENAI_API_KEY` in its environment; without it, rules only. The log is
 capped at 500 lines in the row.
 
+In production the worker is a second process from the same image
+(`docs/deploy.md`); uploads must be on storage both processes see
+(`UPLOADS_DIR`).
+
 ## When the worker dies
 
-A job `running` with a heartbeat older than 30 s is shown as stalled. A
-manager can mark it failed (`markStalled()`), or, for a `queued` job older
-than a minute whose worker never started, respawn it (`respawnQueued()`).
-Nothing restarts automatically: a half-done import is visible in the batch
-and can be re-run; every insert is idempotent on (property, source,
-external id).
+A job `running` with a heartbeat older than two minutes is shown as
+stalled; a manager can mark it failed (`markStalled()`), which also fails
+the import batch it was loading so the wizard offers Load again. The
+worker's sweeper (`sweepStalled()`, once a minute) does the same on its
+own for jobs silent for ten minutes, and fails any batch left `loading`
+by a job that already ended. Nothing restarts automatically: a half-done
+import is visible in the batch and can be re-run; every insert is
+idempotent on (property, source, external id).
 
 ## Reading jobs
 
@@ -55,4 +68,6 @@ the app connection; the `jobs` table carries the tenant columns and the
 Tests: `src/db/__tests__/jobs.test.ts` runs a link job in-process with the
 fake model (claim, progress, result, events), rejects a second active job of
 a kind, fails an import whose folder is missing and marks its batch failed,
-and marks a stalled job.
+claims queued jobs oldest first and never twice, stops a job a person
+marked failed without overwriting their decision, and sweeps a dead job
+with the batch it left loading.

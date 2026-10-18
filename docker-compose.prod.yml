@@ -1,0 +1,64 @@
+# A single-host deployment: Postgres, the console, one worker, and a
+# one-off migration step. Secrets come from .env.production next to this
+# file (never committed); see app/docs/deploy.md for what goes in it.
+# Pass it twice: --env-file fills the ${…} values below, env_file hands it
+# to the containers.
+#
+#   docker compose --env-file .env.production -f docker-compose.prod.yml build
+#   docker compose --env-file .env.production -f docker-compose.prod.yml run --rm migrate
+#   docker compose --env-file .env.production -f docker-compose.prod.yml up -d
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}
+      POSTGRES_DB: hotel_ops
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hotel_ops"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    build: ./app
+    env_file: .env.production
+    command: ["pnpm", "db:migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["tools"]
+
+  web:
+    build: ./app
+    env_file: .env.production
+    environment:
+      UPLOADS_DIR: /data/uploads
+    volumes:
+      - uploads:/data/uploads
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build: ./app
+    env_file: .env.production
+    environment:
+      UPLOADS_DIR: /data/uploads
+    command: ["pnpm", "jobs:worker"]
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  uploads:

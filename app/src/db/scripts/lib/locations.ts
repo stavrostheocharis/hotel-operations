@@ -110,61 +110,93 @@ export function equipmentAliases(e: EquipmentRow): string[] {
   return dedupe(out);
 }
 
+/** Lower-cased phrases and words that name a building or a facility, each pointing at its code. */
+export type KnownPlaces = { buildings: Map<string, string>; facilities: Map<string, string> };
+
+const STOP_WORDS = new Set(["the", "and", "main", "guest", "guests", "pool", "bar", "club", "wing", "block", "building", "bldg", "area", "room", "rooms", "all", "fine", "dining", "studio", "beach", "κτίριο", "κτηριο", "πτέρυγα", "εστιατόριο", "πισίνα", "μπαρ", "δωμάτια"]);
+
 /**
- * Parse the free-text `serves` column of equipment.csv into location codes.
- * "all rooms in C, Elia kitchen" → ["C", "REST-ELIA"]. Unresolved tokens are
- * returned so the loader can record them instead of silently dropping them.
+ * Index a property's buildings and facilities for the serves parser: the
+ * code, the name, every alias, and each distinctive word of the name
+ * ("Orizontas" for "Orizontas Restaurant"), all lower-cased.
  */
-export function parseServes(
-  serves: string,
-  known: { buildings: Set<string>; facilities: Map<string, string> },
-): { codes: string[]; unresolved: string[] } {
+export function knownPlaces(rows: { kind: string; code: string; name: string; aliases?: string[] }[]): KnownPlaces {
+  const known: KnownPlaces = { buildings: new Map(), facilities: new Map() };
+  for (const r of rows) {
+    const map = r.kind === "building" ? known.buildings : r.kind === "facility" ? known.facilities : null;
+    if (!map) continue;
+    const put = (key: string) => {
+      const k = key.trim().toLowerCase();
+      if (k && !map.has(k)) map.set(k, r.code);
+    };
+    put(r.code);
+    put(r.code.replace(/-/g, " "));
+    put(r.name);
+    for (const a of r.aliases ?? []) put(a);
+    for (const w of r.name.split(/[^\p{L}\p{N}]+/u)) if (w.length >= 4 && !STOP_WORDS.has(w.toLowerCase())) put(w);
+  }
+  return known;
+}
+
+const ALL_ROOMS = /^(?:all|every|όλα τα)\s+(?:guest[- ]?)?(?:rooms?|δωμάτια)(?:\s+(?:in|of|at|στο|στην|του|της)\s+(.+))?$/iu;
+const BUILDING_PREFIX = /^(?:building|bldg|block|wing|κτίριο|κτηριο|πτέρυγα)\s+(.+)$/iu;
+const FLOORS = /^floors?\s+[\d\s,–-]+\s*(?:of|in)?\s*(.+)$/iu;
+
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function mentions(text: string, known: Map<string, string>): string[] {
+  const keys = [...known.keys()].filter((k) => k.length >= 3).sort((a, b) => b.length - a.length);
+  const out: string[] = [];
+  for (const k of keys) {
+    const code = known.get(k)!;
+    if (out.includes(code)) continue;
+    if (new RegExp(`(?:^|[^\\p{L}\\p{N}])${escape(k)}(?:$|[^\\p{L}\\p{N}])`, "iu").test(text)) out.push(code);
+  }
+  return out;
+}
+
+/**
+ * Turn a "serves" cell ("all rooms in A, lobby, Orizontas kitchen") into
+ * location codes using only what the property's own places are called.
+ * Tokens nothing matches are returned so the loader can record them.
+ */
+export function parseServes(serves: string, known: KnownPlaces): { codes: string[]; unresolved: string[] } {
   const codes = new Set<string>();
   const unresolved: string[] = [];
-  for (const rawToken of serves.split(",")) {
+  const building = (text: string): string | undefined => known.buildings.get(text.trim().toLowerCase()) ?? mentions(text, known.buildings)[0];
+  for (const rawToken of serves.split(/[,;]|\s\+\s/)) {
     const token = rawToken.trim();
     if (!token) continue;
     const t = token.toLowerCase();
-    if (known.facilities.has(token)) {
-      codes.add(known.facilities.get(token)!);
+    const direct = known.facilities.get(t) ?? known.buildings.get(t);
+    if (direct) {
+      codes.add(direct);
       continue;
     }
-    let m = /^all rooms in ([a-z])$/i.exec(token);
-    if (m && known.buildings.has(m[1].toUpperCase())) {
-      codes.add(m[1].toUpperCase());
+    let m = ALL_ROOMS.exec(token);
+    if (m) {
+      if (!m[1]) for (const b of new Set(known.buildings.values())) codes.add(b);
+      else {
+        const b = building(m[1]);
+        if (b) codes.add(b);
+        else unresolved.push(token);
+      }
       continue;
     }
-    m = /^floors? [\d-]+ ([a-z])\b/i.exec(token);
-    if (m && known.buildings.has(m[1].toUpperCase())) {
-      codes.add(m[1].toUpperCase());
-      if (/elia/i.test(token)) codes.add("REST-ELIA");
-      if (/infinity pool/i.test(token)) codes.add("POOL-INFINITY");
+    if (/^all guest-?room locks$/i.test(t)) {
+      for (const b of new Set(known.buildings.values())) codes.add(b);
       continue;
     }
-    if (/all guest-room locks/i.test(t)) {
-      // Serves every room: link to every building.
-      for (const b of known.buildings) codes.add(b);
+    m = BUILDING_PREFIX.exec(token) ?? FLOORS.exec(token);
+    if (m) {
+      const b = building(m[1]);
+      if (b) codes.add(b);
+      for (const f of mentions(token, known.facilities)) codes.add(f);
+      if (!b && !mentions(token, known.facilities).length) unresolved.push(token);
       continue;
     }
-    const byKeyword: [RegExp, string][] = [
-      [/orizontas/, "REST-ORIZONTAS"],
-      [/ammos/, "REST-AMMOS"],
-      [/elia/, "REST-ELIA"],
-      [/lobby/, "LOBBY"],
-      [/\bspa\b/, "SPA"],
-      [/\bgym\b/, "GYM"],
-      [/infinity pool/, "POOL-INFINITY"],
-      [/main pool/, "POOL-MAIN"],
-      [/beach ?bar|kyma/, "BEACHBAR"],
-      [/kids/, "KIDS"],
-      [/parking/, "PARKING"],
-    ];
-    const hit = byKeyword.find(([re]) => re.test(t));
-    if (hit && known.facilities.has(hit[1])) {
-      codes.add(hit[1]);
-      continue;
-    }
-    unresolved.push(token);
+    const hits = [...mentions(token, known.facilities), ...mentions(token, known.buildings)];
+    if (hits.length) for (const h of hits) codes.add(h);
+    else unresolved.push(token);
   }
   return { codes: [...codes], unresolved };
 }

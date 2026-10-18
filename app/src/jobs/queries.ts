@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { withTenant, type Db, type TenantContext } from "@/db";
-import { STALL_MS, type JobView } from "./types";
+import { NO_WORKER_MS, STALL_MS, type JobView } from "./types";
 
 type Raw = {
   id: string;
@@ -43,6 +43,7 @@ function toView(r: Raw, now: Date): JobView {
     finishedAt: r.finished_at ? new Date(r.finished_at) : null,
     createdAt: new Date(r.created_at),
     stalled: r.status === "running" && (!hb || now.getTime() - hb.getTime() > STALL_MS),
+    noWorker: r.status === "queued" && now.getTime() - new Date(r.created_at).getTime() > NO_WORKER_MS,
   };
 }
 

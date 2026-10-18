@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "check:i18n": "tsx scripts/check-i18n.ts",
     "db:up": "docker compose -f ../docker-compose.yml up -d --wait",
     "db:down": "docker compose -f ../docker-compose.yml down",
     "db:generate": "drizzle-kit generate",
@@ -21,7 +22,8 @@
     "db:audit": "tsx src/db/scripts/audit.ts",
     "db:reality-check": "tsx src/db/scripts/reality-check.ts",
     "test:unit": "vitest run --project unit",
-    "jobs:worker": "tsx src/jobs/worker.ts"
+    "jobs:worker": "tsx src/jobs/worker.ts",
+    "jobs:once": "tsx src/jobs/worker.ts --once"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.95",
@@ -32,6 +34,7 @@
     "cn": "^0.5.0",
     "csv-parse": "^7.0.3",
     "date-fns": "^4.4.0",
+    "dotenv": "^18.0.8",
     "drizzle-orm": "^0.45.4",
     "exceljs": "^4.4.0",
     "franc": "^6.2.0",
@@ -54,7 +57,6 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "dotenv": "^18.0.8",
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",

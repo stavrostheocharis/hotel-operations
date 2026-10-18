@@ -37,7 +37,11 @@ not built yet say which step brings them.
   reality check with its verdict and mapping, load, normalise and link as a
   background job you can watch ([docs/imports.md](docs/imports.md),
   [docs/jobs.md](docs/jobs.md))
-- the rest of `/settings`, `/reports/monthly` — arriving in step 7
+- `/settings` — the property (name, time zone, season, import time), users
+  and roles (add, role, password, access), categories (recurrence windows
+  and default departments, read by the linker) ([docs/app.md](docs/app.md))
+- `/reports/monthly` — one table, months as rows: records, issues, repeats
+  per 1,000 room-nights, closures held, time to close, verified; CSV export
 - `/reports/audit` — the season audit: baseline, recurring failures, fixes
   that did not hold, winter-works list, records assessment; print it for the
   PDF, export Markdown / CSV / JSON ([docs/audit.md](docs/audit.md))
@@ -53,7 +57,12 @@ Checks:
 pnpm build
 pnpm lint
 pnpm exec tsc --noEmit
+pnpm check:i18n            # every string on screen comes from src/i18n/en.ts
 ```
+
+The screen map, with the question each screen answers and who it is for,
+is [docs/app.md](docs/app.md). Running it for a hotel, with the image, the
+worker service and the environment checklist: [docs/deploy.md](docs/deploy.md).
 
 ## Database
 
@@ -190,6 +199,9 @@ src/
     decisions.ts      applyLinkDecision(): confirm / reject, pinned in link_decisions
     actions.ts        the server action behind the buttons
     imports.ts        import batches read model; import-actions.ts the wizard's and the jobs' actions
+    reports.ts        the monthly report and its CSV
+    property-settings.ts  properties.settings: recurrence windows, default departments, import time
+    settings.ts       users of the property; settings-actions.ts property, categories and user actions
     format.ts         dates, durations, status → badge
   normalize/
     language.ts       franc + Greeklish detection

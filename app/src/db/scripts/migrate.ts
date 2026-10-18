@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
-import { createDb, type Db } from "../index";
+import { assertNotDefaultPassword, createDb, type Db } from "../index";
 import { migrationsFolder } from "./lib/paths";
 
 export async function runMigrations(db: Db) {
@@ -10,6 +10,7 @@ export async function runMigrations(db: Db) {
 async function main() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set (copy .env.example to .env)");
+  assertNotDefaultPassword(url, "DATABASE_URL");
   const db = createDb(url, { max: 1 });
   try {
     await runMigrations(db);

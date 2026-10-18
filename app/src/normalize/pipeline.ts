@@ -63,8 +63,8 @@ type SignalRow = {
 
 type Place = { code: string; method: LocationHit["method"] | "stay" | "llm"; confidence: number; rule: string };
 
-/** Topics whose symptom lives at a building's shared equipment rather than in the room. */
-const TOPIC_EQUIPMENT: Record<string, string> = { elevator_stuck: "LIFT-1" };
+/** Topics whose symptom lives at a building's shared equipment rather than in the room, by equipment type. */
+const TOPIC_EQUIPMENT: Record<string, string[]> = { elevator_stuck: ["elevator", "lift"] };
 
 export async function normalizeSignals(db: Db, opts: NormalizeOptions = {}): Promise<NormalizeResult> {
   const log = opts.log ?? (() => {});
@@ -295,14 +295,14 @@ export async function normalizeSignals(db: Db, opts: NormalizeOptions = {}): Pro
       let final: Place | null = place;
 
       const facility = topic ? TOPICS[topic]?.defaultLocation : undefined;
-      const equipmentSuffix = topic ? TOPIC_EQUIPMENT[topic] : undefined;
+      const equipmentTypes = topic ? TOPIC_EQUIPMENT[topic] : undefined;
       const placeIsRoomish = !place || index.rooms.has(place.code) || index.floors.has(place.code) || index.buildings.has(place.code);
       if (facility && placeIsRoomish && index.has(facility)) {
         final = { code: facility, method: "inferred", confidence: 0.75, rule: `topic-facility:${topic}` };
-      } else if (equipmentSuffix && placeIsRoomish) {
+      } else if (equipmentTypes && placeIsRoomish) {
         const building = place ? buildingOf(place.code, index) : null;
-        const code = building ? `${building}-${equipmentSuffix}` : null;
-        if (code && index.has(code)) {
+        const code = building ? (index.equipmentIn(building, equipmentTypes)[0] ?? null) : null;
+        if (code) {
           final = { code, method: "inferred", confidence: 0.7, rule: `topic-equipment:${topic}` };
         }
       }

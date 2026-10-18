@@ -99,7 +99,8 @@ has two or more signals, or when its single signal is an actionable record
 - **Status**: no closure → `detected`; evidence after the last closure →
   `reopened`; otherwise `resolved`, or `closed_unverified` once the category's
   recurrence window (90 days plumbing, 60 hvac, 7 housekeeping, 14 F&B, 30
-  default) has passed without evidence. An `outcome` of kind `recurred`
+  default; a property overrides them in Settings → Categories, stored in
+  `properties.settings`, see `docs/app.md`) has passed without evidence. An `outcome` of kind `recurred`
   (strength 0) or `no_recurrence` (strength 1) is written accordingly;
   `verified` (strength ≥ 2) needs a guest confirmation or staff evidence,
   which no export provides.
@@ -166,3 +167,15 @@ src/db/schema/decisions.ts         link_decisions: human link / unlink pins per 
 src/db/__tests__/link.test.ts      integration test with score floors
 src/db/__tests__/console.test.ts   read models, and that pins survive a rebuild
 ```
+
+## Shared plant is found by type, not by code
+
+Topics whose cause is usually a building's shared plant (`BUILDING_SCOPED_TOPICS`
+in `src/link/rules.ts`) name equipment *types* as the export calls them
+("boiler", "pump", "chiller", "elevator", "access_control"; matched as
+substrings, so "pump" matches "water_pump"). The building-cluster rule
+takes a signal at such equipment as the hub, the root-cause step picks the
+building's equipment of that type (`LocationIndex.equipmentIn`), and the
+normaliser moves an "elevator stuck" report from a room to the building's
+lift the same way. Nothing in the pipeline names a demo code any more, so
+a client's own equipment list drives it.

@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { schema, type Db } from "@/db";
-import { buildingAliases, equipmentAliases, facilityAliases, floorAliases, floorCode, LocationResolver, parseServes, roomAliases, type BuildingDef } from "@/db/scripts/lib/locations";
-import { stayRef } from "@/db/scripts/lib/stay-ref";
+import { buildingAliases, equipmentAliases, facilityAliases, floorAliases, floorCode, knownPlaces, LocationResolver, parseServes, roomAliases, type BuildingDef } from "@/db/scripts/lib/locations";
+import { hash4, slugCode } from "@/db/scripts/lib/codes";
+import { staffRef, stayRef } from "@/db/scripts/lib/stay-ref";
 import { zonedToUtc } from "@/db/scripts/lib/time";
 import { findProperty } from "@/db/scripts/seed";
 import { classifyDate, withTime } from "@/reality/dates";
@@ -80,13 +81,21 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
     return { id: ins.id, created: true };
   };
 
+  /** A code for a place named in the export: the slug, or the slug plus a hash when another place already took it. */
+  const codeFor = (text: string, name: string): string => {
+    const base = slugCode(text);
+    const taken = locationRows.find((l) => l.code.toUpperCase() === base);
+    if (!taken || taken.name.trim().toLowerCase() === name.trim().toLowerCase()) return base;
+    return `${base.slice(0, 19)}-${hash4(name)}`;
+  };
+
   const buildingFor = async (text: string | undefined, name?: string): Promise<{ id: string; code: string } | null> => {
     if (!text?.trim()) return null;
     const hit = resolver.resolve(text);
     const found = hit ? locationRows.find((l) => l.id === hit.id) : undefined;
     if (found?.kind === "building") return { id: found.id, code: found.code };
-    const code = slugCode(text);
-    const def: BuildingDef = { code, name: (name ?? text).trim(), floors: [] };
+    const def: BuildingDef = { code: codeFor(text, (name ?? text).trim()), name: (name ?? text).trim(), floors: [] };
+    const code = def.code;
     const { id } = await upsert({ kind: "building", code, name: def.name, parentId: root.id, aliases: [text.trim(), ...buildingAliases(def)] });
     resolver = new LocationResolver(locationRows);
     return { id, code };
@@ -133,7 +142,7 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
         for (const { rec } of recs) {
           const name = (rec.name ?? "").trim();
           if (!name) continue;
-          const code = (rec.code ?? "").trim().toUpperCase() || slugCode(name);
+          const code = (rec.code ?? "").trim().toUpperCase() || codeFor(name, name);
           const f = { code, name, type: rec.type ?? "", area: rec.area ?? "", notes: rec.notes ?? "" };
           await upsert({ kind: "facility", code, name, parentId: root.id, aliases: facilityAliases(f), attributes: { type: f.type, area: f.area, notes: f.notes } });
         }
@@ -141,11 +150,11 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
         break;
       }
       case "equipment": {
-        const known = { buildings: new Set(locationRows.filter((l) => l.kind === "building").map((l) => l.code)), facilities: new Map(locationRows.filter((l) => l.kind === "facility").flatMap((l) => [[l.code, l.code], [l.name, l.code], ...l.aliases.map((a) => [a, l.code] as [string, string])])) };
+        const known = knownPlaces(locationRows);
         for (const { rec } of recs) {
           const name = (rec.name ?? "").trim();
           if (!name) continue;
-          const id = (rec.id ?? "").trim().toUpperCase() || slugCode(name);
+          const id = (rec.id ?? "").trim().toUpperCase() || codeFor(name, name);
           const building = await buildingFor(rec.building);
           const e = { id, name, type: rec.type ?? "", building: building?.code ?? "", locationText: rec.location ?? "", serves: rec.serves ?? "", installedYear: rec.installed_year ?? "" };
           const { codes, unresolved } = parseServes(e.serves, known);
@@ -173,11 +182,12 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
           rows.push({
             ...tenant,
             source: "pms",
-            externalId: rec.stay_key,
+            // The reservation number lives in pii.stay_keys only; here the stay is its pseudonym.
+            externalId: stayRef(property.code, rec.stay_key),
             occurredAt: arrival,
             stayRef: stayRef(property.code, rec.stay_key),
             raw,
-            mapped: { stay_key: rec.stay_key, room: rec.room ?? null, arrival: arrival.toISOString(), departure: date(rec.departure)?.toISOString() ?? null, adults: rec.adults ?? null, children: rec.children ?? null, nationality: rec.nationality ?? null, segment: rec.segment ?? null, board: rec.board ?? null },
+            mapped: { room: rec.room ?? null, arrival: arrival.toISOString(), departure: date(rec.departure)?.toISOString() ?? null, adults: rec.adults ?? null, children: rec.children ?? null, segment: rec.segment ?? null, board: rec.board ?? null },
             ingestBatchId: o.batchId,
             ...locate(resolver, rec.room),
           });
@@ -200,7 +210,7 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
             category: rec.category || null,
             stayRef: rec.stay_key ? stayRef(property.code, rec.stay_key) : null,
             raw,
-            mapped: { id, created_at: created.toISOString(), closed_at: date(rec.closed_at)?.toISOString() ?? null, status: rec.status ?? null, location: rec.location ?? null, category: rec.category ?? null, description: rec.description ?? null, closure_note: rec.closure_note ?? null, assigned_to: rec.assigned_to ?? null, priority: rec.priority ?? null, reopened: rec.reopened ?? null, created_by: rec.created_by ?? null, reported_via: rec.reported_via ?? null, asset_id: rec.asset_id ?? null },
+            mapped: { id, created_at: created.toISOString(), closed_at: date(rec.closed_at)?.toISOString() ?? null, status: rec.status ?? null, location: rec.location ?? null, category: rec.category ?? null, description: rec.description ?? null, closure_note: rec.closure_note ?? null, assigned_to: rec.assigned_to ? staffRef(property.code, rec.assigned_to) : null, priority: rec.priority ?? null, reopened: rec.reopened ?? null, created_by: rec.created_by ?? null, reported_via: rec.reported_via ?? null, asset_id: rec.asset_id ?? null },
             ingestBatchId: o.batchId,
             ...locate(resolver, rec.location),
           });
@@ -266,7 +276,7 @@ export async function loadBatch(db: Db, o: LoadOptions): Promise<LoadResult> {
             textOriginal: rec.comment || null,
             stayRef: rec.stay_key ? stayRef(property.code, rec.stay_key) : null,
             raw,
-            mapped: { id, submitted_at: at.toISOString(), stay_key: rec.stay_key ?? null, room: rec.room ?? null, overall: rec.overall ?? null, nps: rec.nps ?? null, would_recommend: rec.would_recommend ?? null, comment: rec.comment ?? null, language: rec.language ?? null, building: rec.building ?? null, room_type: rec.room_type ?? null },
+            mapped: { id, submitted_at: at.toISOString(), room: rec.room ?? null, overall: rec.overall ?? null, nps: rec.nps ?? null, would_recommend: rec.would_recommend ?? null, comment: rec.comment ?? null, language: rec.language ?? null, building: rec.building ?? null, room_type: rec.room_type ?? null },
             ingestBatchId: o.batchId,
             ...locate(resolver, rec.room),
           });
@@ -355,13 +365,5 @@ function hashOf(raw: Rec): string {
   return createHash("sha1").update(JSON.stringify(raw)).digest("hex").slice(0, 16);
 }
 
-function slugCode(text: string): string {
-  const s = text
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-  return s.slice(0, 24) || "X";
-}
 
 export type { ParsedFile, FileMapping };

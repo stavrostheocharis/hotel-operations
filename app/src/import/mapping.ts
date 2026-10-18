@@ -6,6 +6,9 @@ import type { DatasetKey, FieldMatch, ParsedFile, RealityReport } from "@/realit
  * works it out; a person can correct it; the loader applies it. Stored on
  * the import batch as JSON.
  */
+/** Catalogue fields that identify a person; their columns never reach `raw`. */
+export const IDENTITY_FIELDS = ["stay_key", "assigned_to"] as const;
+
 export type FileMapping = {
   /** Path as the reality check reports it (with `#Sheet` for a split workbook). */
   path: string;
@@ -14,6 +17,8 @@ export type FileMapping = {
   fields: Record<string, string[]>;
   /** Dates are day-first unless the reality check saw otherwise. */
   monthFirst: boolean;
+  /** Columns the reality check flagged as a person's identity: dropped from `raw`, never mapped. */
+  drop?: string[];
 };
 
 export type ImportMapping = {
@@ -30,7 +35,7 @@ export function mappingFromReport(report: RealityReport): ImportMapping {
     const fields: Record<string, string[]> = {};
     for (const m of f.fields) if (m.method !== "missing" && m.columns.length) fields[m.field] = m.columns;
     const monthFirst = f.dateFormats.some((d) => /^M/.test(d.format) && !/^MMM/.test(d.format));
-    files.push({ path: f.path, dataset: f.dataset, fields, monthFirst });
+    files.push({ path: f.path, dataset: f.dataset, fields, monthFirst, ...(f.identityColumns.length ? { drop: [...f.identityColumns] } : {}) });
   }
   return { version: "import-mapping-v1", files };
 }
@@ -58,13 +63,17 @@ export type Rec = Record<string, string>;
 /** Rows of a parsed file as records keyed by the data request's field names; unmapped columns stay under `_raw`. */
 export function project(file: ParsedFile, mapping: FileMapping): { rec: Rec; raw: Rec }[] {
   const entries = Object.entries(mapping.fields);
+  // Identity never reaches `raw`: the columns the check flagged, and the columns behind identity fields.
+  const hidden = new Set<string>([...(mapping.drop ?? []), ...IDENTITY_FIELDS.flatMap((f) => mapping.fields[f] ?? [])]);
   return file.rows.map((row) => {
     const rec: Rec = {};
     for (const [field, columns] of entries) {
       const values = columns.map((c) => (row[c] ?? "").trim()).filter(Boolean);
       if (values.length) rec[field] = values.join(" / ");
     }
-    return { rec, raw: row };
+    const raw: Rec = {};
+    for (const [k, v] of Object.entries(row)) if (!hidden.has(k)) raw[k] = v;
+    return { rec, raw };
   });
 }
 

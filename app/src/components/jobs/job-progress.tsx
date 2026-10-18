@@ -18,6 +18,8 @@ type Snapshot = {
   log: { at: string; line: string }[];
   error: string | null;
   stalled: boolean;
+  /** Queued for so long that no worker seems to be running (decided server-side). */
+  noWorker: boolean;
 };
 
 /**
@@ -65,6 +67,7 @@ export function JobProgress({ jobId, initial, canManage }: { jobId: string; init
           </span>
         ) : null}
         {snap.stalled ? <span className="text-caption text-critical">{t("jobs.stalled")}</span> : null}
+        {snap.noWorker ? <span className="text-caption text-warning">{t("jobs.noWorker")}</span> : null}
         {snap.stalled && canManage ? <MarkStalled jobId={jobId} /> : null}
       </div>
       {pct !== null && active ? <Progress value={pct} /> : null}

@@ -54,6 +54,36 @@ export class LocationIndex {
   idOf(code: string): string | undefined {
     return this.byCode.get(code.toUpperCase())?.id;
   }
+
+  /**
+   * What kind of equipment this is, lower-cased: the `type` the export gave
+   * it, else the words of its code and name ("C-BOILER" → "c boiler"), so a
+   * place added by hand in Settings without a type still counts.
+   */
+  typeOf(code: string): string | null {
+    const r = this.byCode.get(code.toUpperCase());
+    if (!r || r.kind !== "equipment") return null;
+    const t = r.attributes?.type;
+    if (typeof t === "string" && t.trim()) return t.toLowerCase();
+    return `${r.code} ${(r as { name?: string }).name ?? ""}`.toLowerCase().replace(/[-_]+/g, " ");
+  }
+
+  /** Equipment in a building whose type matches one of `types` (substring, e.g. "pump" matches "water_pump"), by code. */
+  equipmentIn(building: string, types: readonly string[]): string[] {
+    if (!types.length) return [];
+    const b = building.toUpperCase();
+    return [...this.byCode.values()]
+      .filter((r) => r.kind === "equipment" && (String(r.attributes?.building ?? "").toUpperCase() === b || r.code.toUpperCase().startsWith(`${b}-`)))
+      .filter((r) => this.isEquipmentOfType(r.code, types))
+      .map((r) => r.code.toUpperCase())
+      .sort();
+  }
+
+  /** Whether the equipment at `code` is the kind of shared plant `types` names. */
+  isEquipmentOfType(code: string, types: readonly string[]): boolean {
+    const t = this.typeOf(code);
+    return t !== null && types.some((x) => t.includes(x));
+  }
 }
 
 const WING_NAMES: [RegExp, string][] = [

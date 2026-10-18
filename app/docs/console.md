@@ -186,6 +186,10 @@ the person's name next to a confirmed link. Only roles with `links.decide`
   `src/components/imports/` (upload form, wizard buttons, steps, report
   summary) and `src/components/jobs/job-progress.tsx`; see `docs/imports.md`
   and `docs/jobs.md`.
+- `src/console/property-settings.ts`, `settings.ts`, `settings-actions.ts`
+  and `src/components/settings/{property-form,categories-form,user-tools}.tsx`
+  – Settings → Property, Categories, Users; `src/console/reports.ts` and
+  `src/app/(app)/reports/monthly/` – the monthly table (`docs/app.md`).
 - `src/console/actions.ts` – the `'use server'` action the buttons post to;
   it calls `applyLinkDecision` then `refresh()`.
 - `src/console/format.ts` – date, duration and label formatters, the

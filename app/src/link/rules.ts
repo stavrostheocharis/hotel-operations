@@ -15,14 +15,18 @@ export const GRAY_LOW = 0.4;
 
 const DAY = 86_400_000;
 
-/** Topics whose cause is usually shared plant for a whole building, with the equipment suffix to look for. */
+/**
+ * Topics whose cause is usually shared plant for a whole building, with
+ * the equipment types (as the export names them, matched as substrings:
+ * "pump" matches "water_pump") that would be the cause.
+ */
 export const BUILDING_SCOPED_TOPICS: Record<string, string[]> = {
-  no_hot_water: ["BOILER", "PUMP"],
-  low_pressure: ["PUMP", "BOILER"],
-  ac_not_cooling: ["CHILLER"],
-  noise_equipment: ["CHILLER"],
-  elevator_stuck: ["LIFT-1", "LIFT-2"],
-  keycard_fails: ["LOCKS-CONTROLLER"],
+  no_hot_water: ["boiler", "pump", "heat_pump"],
+  low_pressure: ["pump", "boiler"],
+  ac_not_cooling: ["chiller", "heat_pump"],
+  noise_equipment: ["chiller"],
+  elevator_stuck: ["elevator", "lift"],
+  keycard_fails: ["access_control", "lock"],
   sewage_smell: [],
   mosquitoes: [],
   wifi_weak: [],
@@ -123,7 +127,7 @@ export function generateCandidates(signals: LinkSignal[], index: LocationIndex, 
     const isHub =
       h.locationKind === "building" ||
       h.locationKind === "floor" ||
-      (h.locationKind === "equipment" && (BUILDING_SCOPED_TOPICS[h.topic] ?? []).some((suffix) => h.locationCode === `${h.building}-${suffix}`));
+      (h.locationKind === "equipment" && index.isEquipmentOfType(h.locationCode!, BUILDING_SCOPED_TOPICS[h.topic] ?? []));
     if (!isHub) continue;
     for (const r of roomsByBuilding.get(h.building) ?? []) {
       if (r.topic !== h.topic) continue;
@@ -161,7 +165,7 @@ export function generateCandidates(signals: LinkSignal[], index: LocationIndex, 
       (s) =>
         s.locationKind === "building" ||
         s.locationKind === "floor" ||
-        (s.locationKind === "equipment" && BUILDING_SCOPED_TOPICS[topic].some((suffix) => s.locationCode === `${building}-${suffix}`)),
+        (s.locationKind === "equipment" && index.isEquipmentOfType(s.locationCode!, BUILDING_SCOPED_TOPICS[topic])),
     );
     for (const w of clusterWindows(rooms, WINDOWS.clusterGap, WINDOWS.clusterSpan)) {
       const roomCodes = [...new Set(w.map((s) => s.locationCode))];

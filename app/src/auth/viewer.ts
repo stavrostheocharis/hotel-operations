@@ -56,9 +56,16 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
   };
 });
 
-/** The viewer, or a redirect to sign-in. Pages call this inside their Suspense boundary; actions call it first. */
+/**
+ * The viewer, or a redirect: to sign-in without a session, to the
+ * "no property" page for a person who is signed in but has access to
+ * nothing (their membership was removed), which would otherwise loop
+ * between sign-in and Today. Pages call this inside their Suspense
+ * boundary; actions call it first.
+ */
 export async function requireViewer(next?: string): Promise<Viewer> {
   const viewer = await getViewer();
-  if (!viewer) redirect(next ? `/sign-in?next=${encodeURIComponent(next)}` : "/sign-in");
-  return viewer;
+  if (viewer) return viewer;
+  if (await getSession()) redirect("/no-access");
+  redirect(next ? `/sign-in?next=${encodeURIComponent(next)}` : "/sign-in");
 }

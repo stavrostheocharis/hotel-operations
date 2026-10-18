@@ -46,13 +46,30 @@ this order:
 - **rooms, facilities, equipment** → `locations`, created only when the
   code is new, with the same alias builders the seed uses
   (`src/db/scripts/lib/locations.ts`); villas sit under their building,
-  hotel rooms under a floor; `serves` text becomes `location_links`.
+  hotel rooms under a floor. A place without a code in the export gets
+  one from its name, transliterated (`src/db/scripts/lib/codes.ts`:
+  Πισίνα → `PISINA`, never `X`), with a short hash appended when another
+  place already holds that code. The `serves` text becomes
+  `location_links` through `parseServes()`, which knows only the
+  property's own buildings and facilities (codes, names, aliases and the
+  distinctive words of their names, in any language) plus the phrasings
+  "all rooms in …", "building …", "floors 1-3 …"; what it cannot place is
+  kept on the equipment as `serves_unresolved`.
 - **stays** → `pii.stay_keys` (the key, never a name) and one `pms` signal
-  per stay.
+  per stay whose `external_id` is the stay's pseudonym (`stayRef`); the
+  reservation number and the nationality never reach `raw` or `mapped`.
+  Columns the reality check flagged as a person's identity are dropped
+  from `raw` for every dataset (`FileMapping.drop`), and a technician's
+  name becomes a keyed pseudonym (`staffRef`).
 - **work orders, complaints, compensation, surveys, reviews** → `signals`,
   through `insertSignalsScrubbed()` (`src/import/signals.ts`, shared with
-  the synthetic loader): PII scrub of the raw record, `onConflictDoNothing`
-  on (property, source, external id), `signal.created` events. The
+  the synthetic loader): PII scrub of the raw record, then an upsert on
+  (property, source, external id). A new record is inserted
+  (`signal.created`); a known record keeps its first observation (`raw`,
+  text, time are immutable) but takes the new canonical `mapped` record
+  when it changed (`signal.updated`, `normalized_at` reset so the
+  normaliser revisits it) — so a ticket exported open on Monday and closed
+  on Wednesday closes here too; an unchanged record is left alone. The
   external id is the file's id column or a hash of the row.
 - **occupancy** → `occupancy_daily`.
 
@@ -73,7 +90,7 @@ The same job continues with `normalizeSignals` and `linkSignals` for the
 property (the model when the switch was on and a key exists). The batch
 page then says how many issues exist and how many pairs wait in `/review`,
 with buttons to Today and Review. Loading the same export again inserts
-nothing and changes nothing.
+nothing and changes nothing; loading a later export updates what changed.
 
 Permissions: `imports.run` and `jobs.run` (group admin and GM). A batch
 whose check said **stop** can be loaded only by a group admin; **reshape**
