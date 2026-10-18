@@ -102,7 +102,7 @@ async function Batch({ params }: Pick<PageProps<"/imports/[batchId]">, "params">
       {job ? (
         <section className="flex flex-col gap-2">
           <h2 className="text-title-sm text-foreground">{current === "done" ? t("imports.steps.link") : label("jobs.kind", "import")}</h2>
-          <JobProgress jobId={job.id} canManage={canManageJobs} initial={{ status: job.status, progress: job.progress, log: job.log.slice(-40), error: job.error, stalled: job.stalled }} />
+          <JobProgress jobId={job.id} canManage={canManageJobs} initial={{ status: job.status, progress: job.progress, log: job.log.slice(-40), error: job.error, stalled: job.stalled, noWorker: job.noWorker }} />
         </section>
       ) : null}
 

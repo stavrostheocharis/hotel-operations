@@ -11,7 +11,7 @@ import { getAppDb, schema, withTenant } from "@/db";
 import { dataDir, uploadsDir } from "@/db/scripts/lib/paths";
 import { mappingFromReport } from "@/import/mapping";
 import { t } from "@/i18n";
-import { enqueueJob, JobAlreadyRunning, respawnQueued } from "@/jobs/runner";
+import { enqueueJob, JobAlreadyRunning } from "@/jobs/runner";
 import { markStalled } from "@/jobs/run";
 import { runRealityCheck } from "@/reality";
 import type { ActionResult } from "./issue-actions";
@@ -141,8 +141,6 @@ export async function markStalledAction(_prev: ActionResult | null, fd: FormData
     const viewer = await requireViewer();
     assertCan(viewer.actor(), "jobs.run");
     const jobId = str(fd, "jobId");
-    const restarted = await respawnQueued(getAppDb(), viewer.scoped, jobId);
-    if (restarted) return t("jobs.toast.restarted");
     const done = await withTenant(getAppDb(), viewer.scoped, (tx) => markStalled(tx, jobId));
     return done ? t("jobs.toast.markedFailed") : t("jobs.toast.nothingToDo");
   });

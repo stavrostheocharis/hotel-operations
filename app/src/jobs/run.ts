@@ -6,13 +6,15 @@ import { embedSignals } from "@/link/embeddings";
 import { linkSignals } from "@/link/pipeline";
 import { createFakeLlm, createOpenAiLlm, type LlmClient } from "@/normalize/llm";
 import { normalizeSignals } from "@/normalize/pipeline";
-import type { JobKind, JobParams, JobProgressInfo } from "./types";
+import { STALL_MS, SWEEP_AFTER_MS, type JobKind, type JobParams, type JobProgressInfo } from "./types";
 
 /**
- * Runs one job to its end, in whatever process calls it: the detached
- * worker in production, the test in the suite. Claims the row, keeps the
+ * Runs one job to its end, in whatever process calls it: the worker
+ * service in production, the test in the suite. Claims the row, keeps the
  * heartbeat, streams progress and log lines into the row, writes the
- * result or the error.
+ * result or the error. Every write to the row is conditional on it still
+ * being `running`: a job a person marked failed stops at its next log
+ * line and never writes its result over theirs.
  */
 export type RunOptions = {
   /** Replace the real model with the fake one (tests). */
@@ -21,19 +23,56 @@ export type RunOptions = {
   log?: (line: string) => void;
 };
 
+export type JobRow = typeof schema.jobs.$inferSelect;
+export type RunResult = { status: "succeeded" | "failed"; result?: Record<string, unknown>; error?: string };
+
 const LOG_CAP = 500;
 
-export async function runJob(db: Db, jobId: string, opts: RunOptions = {}): Promise<{ status: "succeeded" | "failed"; result?: Record<string, unknown>; error?: string }> {
+/** Thrown inside the work when the row stopped being ours. */
+export class JobAborted extends Error {
+  constructor() {
+    super("the job was stopped elsewhere");
+    this.name = "JobAborted";
+  }
+}
+
+/** Claim one job by id (a worker started for it, or a test). */
+export async function runJob(db: Db, jobId: string, opts: RunOptions = {}): Promise<RunResult> {
   const [job] = await db
     .update(schema.jobs)
     .set({ status: "running", startedAt: new Date(), heartbeatAt: new Date(), pid: process.pid })
     .where(and(eq(schema.jobs.id, jobId), eq(schema.jobs.status, "queued")))
     .returning();
   if (!job) throw new Error(`job ${jobId} is not queued`);
+  return runClaimed(db, job, opts);
+}
+
+/**
+ * Claim the oldest queued job, whichever worker asks first (`FOR UPDATE
+ * SKIP LOCKED`, so several workers never take the same row). Null when
+ * nothing is queued.
+ */
+export async function claimNextJob(db: Db): Promise<JobRow | null> {
+  const [job] = await db
+    .update(schema.jobs)
+    .set({ status: "running", startedAt: new Date(), heartbeatAt: new Date(), pid: process.pid })
+    .where(eq(schema.jobs.id, sql`(select id from jobs where status = 'queued' order by created_at limit 1 for update skip locked)`))
+    .returning();
+  return job ?? null;
+}
+
+/** Run a job this process has claimed. */
+export async function runClaimed(db: Db, job: JobRow, opts: RunOptions = {}): Promise<RunResult> {
+  const jobId = job.id;
   const params = (job.params ?? {}) as JobParams;
   const lines: { at: string; line: string }[] = [];
   let dirty = false;
+  let aborted = false;
+  const assertAlive = () => {
+    if (aborted) throw new JobAborted();
+  };
   const log = (line: string) => {
+    assertAlive();
     lines.push({ at: new Date().toISOString(), line });
     if (lines.length > LOG_CAP) lines.splice(0, lines.length - LOG_CAP);
     dirty = true;
@@ -41,15 +80,18 @@ export async function runJob(db: Db, jobId: string, opts: RunOptions = {}): Prom
   };
   let progress: JobProgressInfo | null = null;
   const onProgress = (p: JobProgressInfo) => {
+    assertAlive();
     progress = p;
     dirty = true;
   };
   const flush = async () => {
-    await db
+    const r = await db
       .update(schema.jobs)
       .set({ heartbeatAt: new Date(), ...(dirty ? { log: { lines }, progress: progress ?? {} } : {}) })
-      .where(eq(schema.jobs.id, jobId));
+      .where(and(eq(schema.jobs.id, jobId), eq(schema.jobs.status, "running")))
+      .returning({ id: schema.jobs.id });
     dirty = false;
+    if (r.length === 0) aborted = true;
   };
   const timer = setInterval(() => void flush().catch(() => undefined), opts.heartbeatMs ?? 5_000);
   const tenant = { groupId: job.groupId, propertyId: job.propertyId };
@@ -61,17 +103,36 @@ export async function runJob(db: Db, jobId: string, opts: RunOptions = {}): Prom
     const llm = opts.llm !== undefined ? opts.llm : params.llm ? createOpenAiLlm() : null;
     const result = await dispatch(db, job.kind, params, { propertyCode: property.code, propertyId: property.id, llm, log, onProgress });
     clearInterval(timer);
-    await db.update(schema.jobs).set({ status: "succeeded", result, finishedAt: new Date(), heartbeatAt: new Date(), log: { lines }, progress: progress ?? {} }).where(eq(schema.jobs.id, jobId));
+    const done = await db
+      .update(schema.jobs)
+      .set({ status: "succeeded", result, finishedAt: new Date(), heartbeatAt: new Date(), log: { lines }, progress: progress ?? {} })
+      .where(and(eq(schema.jobs.id, jobId), eq(schema.jobs.status, "running")))
+      .returning({ id: schema.jobs.id });
+    if (done.length === 0) {
+      opts.log?.(`job ${jobId}: finished, but the row was no longer running; result discarded`);
+      return { status: "failed", error: "the job was stopped elsewhere" };
+    }
     await db.insert(schema.events).values({ ...tenant, entityType: "job", entityId: job.id, type: "job.finished", actor: job.requestedBy ?? "system", payload: { kind: job.kind, status: "succeeded" } });
     return { status: "succeeded", result };
   } catch (err) {
     clearInterval(timer);
+    if (err instanceof JobAborted || aborted) {
+      opts.log?.(`job ${jobId}: stopped elsewhere, giving up`);
+      return { status: "failed", error: "the job was stopped elsewhere" };
+    }
     const error = err instanceof Error ? err.message : String(err);
-    log(`failed: ${error}`);
-    await db.update(schema.jobs).set({ status: "failed", error, finishedAt: new Date(), heartbeatAt: new Date(), log: { lines }, progress: progress ?? {} }).where(eq(schema.jobs.id, jobId));
-    await db.insert(schema.events).values({ ...tenant, entityType: "job", entityId: job.id, type: "job.finished", actor: job.requestedBy ?? "system", payload: { kind: job.kind, status: "failed", error } });
-    if (job.kind === "import" && params.batchId) {
-      await db.update(schema.importBatches).set({ status: "failed", error }).where(eq(schema.importBatches.id, params.batchId));
+    lines.push({ at: new Date().toISOString(), line: `failed: ${error}` });
+    opts.log?.(`failed: ${error}`);
+    const done = await db
+      .update(schema.jobs)
+      .set({ status: "failed", error, finishedAt: new Date(), heartbeatAt: new Date(), log: { lines }, progress: progress ?? {} })
+      .where(and(eq(schema.jobs.id, jobId), eq(schema.jobs.status, "running")))
+      .returning({ id: schema.jobs.id });
+    if (done.length) {
+      await db.insert(schema.events).values({ ...tenant, entityType: "job", entityId: job.id, type: "job.finished", actor: job.requestedBy ?? "system", payload: { kind: job.kind, status: "failed", error } });
+      if (job.kind === "import" && params.batchId) {
+        await db.update(schema.importBatches).set({ status: "failed", error }).where(and(eq(schema.importBatches.id, params.batchId), eq(schema.importBatches.status, "loading")));
+      }
     }
     return { status: "failed", error };
   }
@@ -128,12 +189,42 @@ async function dispatch(db: Db, kind: JobKind, params: JobParams, c: Ctx): Promi
 /** For tests and scripts without a model key. */
 export const fakeLlm = createFakeLlm;
 
-/** Mark a job the worker never finished (no heartbeat) as failed. */
-export async function markStalled(db: Db | Tx, jobId: string): Promise<boolean> {
+/**
+ * Mark a running job whose heartbeat stopped as failed, and fail the import
+ * batch it was loading so the wizard offers Load again instead of waiting
+ * forever. The job's own process, if it is still alive, notices at its next
+ * heartbeat and gives up.
+ */
+export async function markStalled(db: Db | Tx, jobId: string, olderThanMs = STALL_MS): Promise<boolean> {
   const r = await db
     .update(schema.jobs)
     .set({ status: "failed", error: "the worker stopped reporting", finishedAt: new Date() })
-    .where(and(eq(schema.jobs.id, jobId), eq(schema.jobs.status, "running"), sql`${schema.jobs.heartbeatAt} < now() - interval '30 seconds'`))
+    .where(and(eq(schema.jobs.id, jobId), eq(schema.jobs.status, "running"), sql`${schema.jobs.heartbeatAt} < now() - make_interval(secs => ${olderThanMs / 1000})`))
     .returning({ id: schema.jobs.id });
-  return r.length > 0;
+  if (r.length === 0) return false;
+  await db
+    .update(schema.importBatches)
+    .set({ status: "failed", error: "the worker stopped reporting" })
+    .where(and(eq(schema.importBatches.jobId, jobId), eq(schema.importBatches.status, "loading")));
+  return true;
+}
+
+/**
+ * The worker's sweeper: fail every running job that has not reported for
+ * SWEEP_AFTER_MS (a dead process), and fail every batch still `loading`
+ * whose job already ended. Returns what it touched.
+ */
+export async function sweepStalled(db: Db, olderThanMs = SWEEP_AFTER_MS): Promise<{ jobs: number; batches: number }> {
+  const stale = await db
+    .select({ id: schema.jobs.id })
+    .from(schema.jobs)
+    .where(and(eq(schema.jobs.status, "running"), sql`${schema.jobs.heartbeatAt} < now() - make_interval(secs => ${olderThanMs / 1000})`));
+  let jobs = 0;
+  for (const j of stale) if (await markStalled(db, j.id, olderThanMs)) jobs++;
+  const batches = await db.execute<{ id: string }>(sql`
+    update import_batches b set status = 'failed', error = coalesce(j.error, 'the job ended without finishing the load')
+    from jobs j where b.job_id = j.id and b.status = 'loading' and j.status in ('failed', 'cancelled', 'succeeded')
+    returning b.id
+  `);
+  return { jobs, batches: batches.length };
 }

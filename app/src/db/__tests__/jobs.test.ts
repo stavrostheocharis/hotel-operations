@@ -4,7 +4,7 @@ import { createDb, schema, type Db, type TenantContext } from "../index";
 import { findProperty } from "../scripts/seed";
 import { createFakeLlm } from "@/normalize/llm";
 import { getJob, latestJobs, listJobs } from "@/jobs/queries";
-import { markStalled, runJob } from "@/jobs/run";
+import { claimNextJob, markStalled, runClaimed, runJob, sweepStalled } from "@/jobs/run";
 import { TEST_APP_URL, TEST_URL } from "./env";
 import { expectDbError } from "./helpers";
 
@@ -90,7 +90,7 @@ describe("background jobs", () => {
   });
 
   it("marks a running job whose heartbeat stopped as failed, and leaves a live one alone", async () => {
-    const stale = await insertJob({ kind: "audit", status: "running", startedAt: new Date(), heartbeatAt: new Date(Date.now() - 60_000) });
+    const stale = await insertJob({ kind: "audit", status: "running", startedAt: new Date(), heartbeatAt: new Date(Date.now() - 3 * 60_000) });
     expect((await getJob(app, ctx, stale))!.stalled).toBe(true);
     expect(await markStalled(admin, stale)).toBe(true);
     expect((await getJob(app, ctx, stale))!.status).toBe("failed");
@@ -100,12 +100,66 @@ describe("background jobs", () => {
     await admin.update(schema.jobs).set({ status: "cancelled" }).where(eq(schema.jobs.id, live));
   });
 
+  it("hands queued jobs to whichever worker asks first, oldest first, and nothing twice", async () => {
+    const first = await insertJob({ kind: "embed" });
+    await new Promise((r) => setTimeout(r, 5));
+    const second = await insertJob({ kind: "normalize" });
+    const a = await claimNextJob(admin);
+    const b = await claimNextJob(admin);
+    const c = await claimNextJob(admin);
+    expect(a?.id).toBe(first);
+    expect(a?.status).toBe("running");
+    expect(b?.id).toBe(second);
+    expect(c).toBeNull();
+    await admin.update(schema.jobs).set({ status: "cancelled" }).where(sql`${schema.jobs.id} in (${first}, ${second})`);
+  });
+
+  it("a job a person marked failed stops at its next heartbeat and never overwrites their decision", async () => {
+    const id = await insertJob({ kind: "link" });
+    const job = (await claimNextJob(admin))!;
+    expect(job.id).toBe(id);
+    const run = runClaimed(admin, job, { llm: createFakeLlm(), heartbeatMs: 20 });
+    await new Promise((r) => setTimeout(r, 300));
+    await admin.update(schema.jobs).set({ status: "failed", error: "stopped by a person", finishedAt: new Date() }).where(eq(schema.jobs.id, id));
+    const out = await run;
+    expect(out.status).toBe("failed");
+    expect(out.error).toMatch(/stopped elsewhere/);
+    const after = (await getJob(app, ctx, id))!;
+    expect(after.status).toBe("failed");
+    expect(after.error).toBe("stopped by a person");
+    const finished = await admin.execute<{ n: number }>(sql`select count(*)::int as n from events where entity_id = ${id} and type = 'job.finished'`);
+    expect(Number(finished[0].n)).toBe(0);
+  });
+
+  it("the sweeper fails a job whose process died and the batch it left loading, and leaves live jobs alone", async () => {
+    const [batch] = await admin
+      .insert(schema.importBatches)
+      .values({ ...tenant, source: "folder", dir: "/nowhere", files: [], status: "loading", verdict: "go", mapping: { version: "import-mapping-v1", files: [] }, createdBy: gmId })
+      .returning({ id: schema.importBatches.id });
+    const dead = await insertJob({ kind: "import", status: "running", startedAt: new Date(), heartbeatAt: new Date(Date.now() - 20 * 60_000), params: { propertyCode: "ASTRAEA", batchId: batch.id } });
+    await admin.update(schema.importBatches).set({ jobId: dead }).where(eq(schema.importBatches.id, batch.id));
+    const live = await insertJob({ kind: "normalize", status: "running", startedAt: new Date(), heartbeatAt: new Date() });
+    const swept = await sweepStalled(admin);
+    expect(swept.jobs).toBe(1);
+    expect((await getJob(app, ctx, dead))!.status).toBe("failed");
+    expect((await getJob(app, ctx, live))!.status).toBe("running");
+    const [b] = await admin.select().from(schema.importBatches).where(eq(schema.importBatches.id, batch.id));
+    expect(b.status).toBe("failed");
+    expect(b.error).toMatch(/stopped reporting/);
+    // a batch left `loading` by a job that already ended is failed too
+    await admin.update(schema.importBatches).set({ status: "loading" }).where(eq(schema.importBatches.id, batch.id));
+    expect((await sweepStalled(admin)).batches).toBe(1);
+    await admin.update(schema.jobs).set({ status: "cancelled" }).where(eq(schema.jobs.id, live));
+    await admin.delete(schema.importBatches).where(eq(schema.importBatches.id, batch.id));
+  });
+
   it("lists through the app role under the tenant and gives the latest of each kind", async () => {
     const all = await listJobs(app, ctx, 50);
     expect(all.length).toBeGreaterThanOrEqual(5);
     expect(all.every((j) => j.requestedByName)).toBe(true);
     const latest = await latestJobs(app, ctx);
-    expect(latest.link?.status).toBe("succeeded");
+    expect(latest.link?.status).toBe("failed"); // the one a person stopped, above
+    expect(latest.link?.error).toBe("stopped by a person");
     expect(latest.import?.status).toBe("failed");
     // another property of the group sees none of them
     const empty = await listJobs(app, { groupId: ctx.groupId, propertyIds: [] }, 50).catch(() => []);

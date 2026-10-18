@@ -49,6 +49,16 @@ of section A is a few days.
    one long-lived worker service built from the same image, polling `jobs`
    with `FOR UPDATE SKIP LOCKED`, with a sweeper that fails stale jobs and
    resets their batch; put uploads on shared storage.
+   **Fixed on `pilot-blockers`:** `pnpm jobs:worker` is a long-lived
+   service (`src/jobs/worker.ts`) that claims the oldest queued job with
+   `FOR UPDATE SKIP LOCKED`, runs it with every row write conditional on
+   the row still being `running` (a job a person marked failed stops at
+   its next heartbeat), and sweeps dead jobs and batches left `loading`
+   once a minute; `--once` drains the queue for cron. The web app only
+   inserts the row; the one-shot spawn survives in development only
+   (`JOBS_SPAWN=0` turns it off), with its error logged. `dotenv` is a
+   dependency. The page says when nothing has picked a job up for two
+   minutes. Shared storage for uploads is part of the deployment item.
 4. **No deployment story.** No Dockerfile, no production notes; the DB
    roles are created with literal passwords (`drizzle/0002:16-22`),
    `STAY_REF_SECRET` falls back to `"dev-only-change-me"`

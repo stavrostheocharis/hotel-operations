@@ -9,7 +9,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   const job = await getJob(getAppDb(), viewer.tenant, id);
   if (!job) return new Response("not found", { status: 404, headers: { "cache-control": "no-store" } });
   return Response.json(
-    { id: job.id, kind: job.kind, status: job.status, progress: job.progress, log: job.log.slice(-40), error: job.error, result: job.result, stalled: job.stalled, finishedAt: job.finishedAt, heartbeatAt: job.heartbeatAt },
+    { id: job.id, kind: job.kind, status: job.status, progress: job.progress, log: job.log.slice(-40), error: job.error, result: job.result, stalled: job.stalled, noWorker: job.noWorker, finishedAt: job.finishedAt, heartbeatAt: job.heartbeatAt },
     { headers: { "cache-control": "no-store" } },
   );
 }

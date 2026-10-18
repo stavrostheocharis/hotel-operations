@@ -2,14 +2,17 @@ import "server-only";
 
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { sql } from "drizzle-orm";
 import { schema, withTenant, type Db, type TenantContext } from "@/db";
 import type { JobKind, JobParams } from "./types";
 
 /**
- * Starts a job from the web app: one row, then a detached child process
- * that runs it (src/jobs/worker.ts). The row is the only contract between
- * the two; the page follows it through /api/jobs/[id].
+ * Starts a job from the web app: one `jobs` row. The worker service
+ * (src/jobs/worker.ts, `pnpm jobs:worker`) picks it up; the row is the only
+ * contract between the two and the page follows it through /api/jobs/[id].
+ *
+ * In development only, where nobody runs the service, a one-shot worker is
+ * spawned for the row so the wizard still moves. Set JOBS_SPAWN=0 to run
+ * the service yourself in development too.
  */
 export class JobAlreadyRunning extends Error {
   constructor(kind: string) {
@@ -31,27 +34,24 @@ export async function enqueueJob(db: Db, ctx: TenantContext, input: { propertyId
       throw err;
     }
   });
-  spawnWorker(id);
+  if (process.env.NODE_ENV !== "production" && process.env.JOBS_SPAWN !== "0") spawnDevWorker(id);
   return { id };
 }
 
-/** Detached, so a dev-server restart or a finished request does not kill it. */
-export function spawnWorker(jobId: string): void {
+/** Development convenience: one worker process for one row, detached from the request. */
+function spawnDevWorker(jobId: string): void {
   const appDir = process.cwd();
   const tsx = path.join(appDir, "node_modules", "tsx", "dist", "cli.mjs");
-  const child = spawn(process.execPath, [tsx, path.join(appDir, "src", "jobs", "worker.ts"), "--job", jobId], {
-    cwd: appDir,
-    env: process.env,
-    detached: true,
-    stdio: "ignore",
-  });
-  child.unref();
-}
-
-/** Queued jobs whose worker never started (a crash between insert and spawn) are rare; this lets a page restart them. */
-export async function respawnQueued(db: Db, ctx: TenantContext, jobId: string): Promise<boolean> {
-  const rows = await withTenant(db, ctx, (tx) => tx.execute<{ id: string }>(sql`select id from jobs where id = ${jobId} and status = 'queued' and created_at < now() - interval '1 minute'`));
-  if (!rows.length) return false;
-  spawnWorker(jobId);
-  return true;
+  try {
+    const child = spawn(process.execPath, [tsx, path.join(appDir, "src", "jobs", "worker.ts"), "--job", jobId], {
+      cwd: appDir,
+      env: process.env,
+      detached: true,
+      stdio: "ignore",
+    });
+    child.on("error", (err) => console.error(`[jobs] could not start the dev worker for ${jobId}: ${err.message}; run pnpm jobs:worker`));
+    child.unref();
+  } catch (err) {
+    console.error(`[jobs] could not start the dev worker for ${jobId}: ${err instanceof Error ? err.message : String(err)}; run pnpm jobs:worker`);
+  }
 }
