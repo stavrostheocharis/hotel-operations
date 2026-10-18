@@ -25,6 +25,7 @@ import { CATEGORIES } from "@/normalize/taxonomy";
 import { cn } from "@/lib/utils";
 import { canSee } from "@/auth/screens";
 import { NotAllowed } from "@/components/console/not-allowed";
+import { needsTranslation } from "@/console/format";
 
 export const metadata = { title: t("signals.title") };
 
@@ -144,6 +145,7 @@ async function Inbox({ searchParams }: Pick<PageProps<"/signals">, "searchParams
                       <Link href={hrefFor(view, page, r.id)} className="line-clamp-2 text-body text-foreground hover:underline focus-visible:shadow-focus focus-visible:outline-none">
                         {r.text ?? <span className="text-muted-soft">{t("issue.noText")}</span>}
                       </Link>
+                      {needsTranslation(r.translated ? "x" : null, r.language) ? <div className="text-caption text-muted-soft">{t("signals.record.untranslated")}</div> : null}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
                       {r.issueId ? (

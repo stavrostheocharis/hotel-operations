@@ -54,7 +54,8 @@ for Greek-locale Excel; `format=json` gives the data.
   7, F&B 14, facilities 30, everything else 30.
 - **Default departments** – prefilled in the Assign dialog when an issue
   has no department yet.
-- **Import time** – when the nightly export is expected; informational.
+- **Import time** – when the nightly export is expected; once that time
+  has passed in the property's zone with no import since, Today says so.
 
 Name, time zone (validated with `Intl`), season open/close live in their
 own columns. Every save writes a `property.settings_changed` event.

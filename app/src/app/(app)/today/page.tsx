@@ -70,6 +70,7 @@ async function Today({ searchParams }: Pick<PageProps<"/today">, "searchParams">
               <span>{strip}</span>
             )}
             {digest.lastImportAt ? <span className="text-muted-soft"> · {t("today.lastImport", { when: fmtDateTime(digest.lastImportAt, tz) })}</span> : null}
+            {digest.exportLate ? <span className="text-warning"> · {t("today.exportLate", { time: digest.exportLate.expectedAt })}</span> : null}
           </>
         }
       />

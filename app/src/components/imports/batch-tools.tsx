@@ -25,7 +25,7 @@ export function CheckButton({ batchId, again }: { batchId: string; again: boolea
 
 export function LoadButton({ batchId, verdict, canOverride, modelAvailable }: { batchId: string; verdict: string | null; canOverride: boolean; modelAvailable: boolean }) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(loadBatchAction, null);
-  const [llm, setLlm] = useState(false);
+  const [llm, setLlm] = useState(modelAvailable);
   useActionToast(state);
   const blocked = verdict === "stop" && !canOverride;
   return (

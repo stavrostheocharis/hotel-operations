@@ -11,6 +11,7 @@ import { LANGUAGE } from "@/audit/markdown";
 import { label, t } from "@/i18n";
 import { CATEGORIES, TOPICS } from "@/normalize/taxonomy";
 import { ClassificationForm, CreateIssueDialog, LinkButton, LinkSearch, PlacePicker } from "./record-tools";
+import { needsTranslation } from "@/console/format";
 
 /**
  * One record, in full: what it says, where and what the engine thinks it
@@ -152,6 +153,7 @@ export function RecordPanel({
         </TabsList>
         <TabsContent value="text">
           <p className="whitespace-pre-wrap text-body text-foreground">{record.textOriginal ?? record.textEn ?? ""}</p>
+          {needsTranslation(record.textEn, record.language) ? <p className="text-caption text-muted-soft">{t("signals.record.untranslated")}</p> : null}
           {record.normalized && Object.keys(record.normalized).length ? (
             <p className="mt-2 text-caption text-muted-soft">{summariseNormalized(record.normalized)}</p>
           ) : null}

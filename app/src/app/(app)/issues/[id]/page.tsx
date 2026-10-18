@@ -23,6 +23,7 @@ import { getAppDb, schema } from "@/db";
 import { label, t } from "@/i18n";
 import { CATEGORIES } from "@/normalize/taxonomy";
 import { LinkDecision } from "@/components/issues/link-decision";
+import { needsTranslation } from "@/console/format";
 
 export const metadata = { title: "Issue" };
 
@@ -338,6 +339,7 @@ function SignalRow({ signal: s, issueId, tz, canDecide }: { signal: IssueSignal;
       </div>
       <p className="text-body text-foreground">{text ?? <span className="text-muted-soft">{t("issue.noText")}</span>}</p>
       {s.textEn && s.textOriginal && s.textEn !== s.textOriginal ? <p className="text-caption text-muted-soft">{s.textOriginal}</p> : null}
+      {needsTranslation(s.textEn, s.language) ? <p className="text-caption text-muted-soft">{t("signals.record.untranslated")}</p> : null}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-caption text-muted-foreground" title={reason || undefined}>
           {confirmed ? `${label("method", "human")} · ${s.decidedByName ?? s.decidedBy}` : `${rule.replace(/[:_]/g, " ")}${s.confidence !== null ? ` · ${Math.round(s.confidence * 100)}%` : ""}`}

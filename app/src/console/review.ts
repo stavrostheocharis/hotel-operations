@@ -21,6 +21,7 @@ export type ReviewSide = {
   category: string | null;
   textEn: string | null;
   textOriginal: string | null;
+  language: string | null;
   issueId: string | null;
   issueTitle: string | null;
 };
@@ -50,6 +51,7 @@ type SideRaw = {
   category: string | null;
   text_en: string | null;
   text_original: string | null;
+  language: string | null;
   issue_id: string | null;
   issue_title: string | null;
 };
@@ -65,6 +67,7 @@ const toSide = (r: SideRaw): ReviewSide => ({
   category: r.category,
   textEn: r.text_en,
   textOriginal: r.text_original,
+  language: r.language,
   issueId: r.issue_id,
   issueTitle: r.issue_title,
 });
@@ -73,7 +76,7 @@ async function sides(tx: Tx, ids: string[]): Promise<Map<string, ReviewSide>> {
   if (!ids.length) return new Map();
   const rows = await tx.execute<SideRaw>(sql`
     select s.id, s.source::text as source, s.external_id, s.occurred_at, l.code as location_code, l.name as location_name,
-           s.topic, s.category, s.text_en, s.text_original, m.issue_id, i.title as issue_title
+           s.topic, s.category, s.text_en, s.text_original, s.language, m.issue_id, i.title as issue_title
     from signals s
     left join locations l on l.id = s.location_id
     left join lateral (select isg.issue_id from issue_signals isg join issues ii on ii.id = isg.issue_id where isg.signal_id = s.id and ii.superseded_at is null order by isg.decided_at desc limit 1) m on true

@@ -363,6 +363,7 @@ export const en = {
     strip: "{date} · {n} new records today ({bySource})",
     stripNone: "{date} · no new records yet today",
     lastImport: "last import {when}",
+    exportLate: "the export expected at {time} has not arrived yet",
     all: "All",
     mine: "Mine ({department})",
     cameBack: "Came back in the last 7 days",
@@ -433,6 +434,7 @@ export const en = {
     empty: { unlinked: "Every record with a topic is linked.", today: "No records yet today.", all: "No records.", search: "Nothing matches “{q}”." },
     pager: "Showing {from}–{to} of {total}",
     record: {
+      untranslated: "Not translated yet",
       title: "Record",
       received: "received {when}",
       language: "Language",

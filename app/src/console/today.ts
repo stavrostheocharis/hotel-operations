@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { withTenant, type Db, type TenantContext } from "@/db";
 import { listVerifications, type VerificationRow } from "./verification";
+import { zonedToUtc } from "@/db/scripts/lib/time";
 
 /**
  * "What needs a person today?" Three short lists and one strip of counts.
@@ -24,6 +25,8 @@ export type IssueBrief = {
 export type TodayDigest = {
   todayRecords: { total: number; bySource: { source: string; count: number }[] };
   lastImportAt: Date | null;
+  /** The property expects its export at this time (settings) and it has not arrived today. */
+  exportLate: { expectedAt: string } | null;
   cameBack: { rows: IssueBrief[]; total: number };
   unassigned: { rows: IssueBrief[]; total: number };
   verificationsDue: { rows: VerificationRow[]; total: number };
@@ -72,8 +75,11 @@ export async function getTodayDigest(db: Db, ctx: TenantContext, p: { timeZone: 
       `),
     ),
     withTenant(db, ctx, async (tx) => {
-      const [r] = await tx.execute<{ at: Date | null }>(sql`select max(occurred_at) as at from events where type = 'ingest.completed'`);
-      return r?.at ? new Date(r.at) : null;
+      const [r] = await tx.execute<{ at: Date | null; import_time: string | null }>(sql`
+        select (select max(occurred_at) from events where type = 'ingest.completed') as at,
+               (select settings->>'importTime' from properties limit 1) as import_time
+      `);
+      return { at: r?.at ? new Date(r.at) : null, importTime: r?.import_time ?? null };
     }),
     withTenant(db, ctx, (tx) =>
       tx.execute<BriefRaw>(sql`
@@ -116,9 +122,24 @@ export async function getTodayDigest(db: Db, ctx: TenantContext, p: { timeZone: 
   ]);
   return {
     todayRecords: { total: records.reduce((n, r) => n + r.count, 0), bySource: records.map((r) => ({ source: r.source, count: r.count })) },
-    lastImportAt: lastImport,
+    lastImportAt: lastImport.at,
+    exportLate: isExportLate({ importTime: lastImport.importTime, lastImportAt: lastImport.at, now: new Date(), timeZone: tz }) ? { expectedAt: lastImport.importTime! } : null,
     cameBack: { rows: cameBack.map(toBrief), total: cameBack[0]?.total ?? 0 },
     unassigned: { rows: unassigned.map(toBrief), total: unassigned[0]?.total ?? 0 },
     verificationsDue: due,
   };
+}
+
+/**
+ * Late when the property expects its export at a time of day (settings),
+ * that time has passed today in the property's zone, and no import has
+ * completed since then.
+ */
+export function isExportLate(p: { importTime: string | null; lastImportAt: Date | null; now: Date; timeZone: string }): boolean {
+  const m = p.importTime ? /^(\d{2}):(\d{2})$/.exec(p.importTime) : null;
+  if (!m) return false;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: p.timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(p.now).map((x) => [x.type, x.value]));
+  const expected = zonedToUtc({ year: Number(parts.year), month: Number(parts.month), day: Number(parts.day), hour: Number(m[1]), minute: Number(m[2]) }, p.timeZone);
+  if (p.now < expected) return false;
+  return !p.lastImportAt || p.lastImportAt < expected;
 }

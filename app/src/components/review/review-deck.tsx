@@ -12,6 +12,7 @@ import type { ReviewPair, ReviewSide } from "@/console/review";
 import type { PairVerdict } from "@/console/review";
 import { decidePairAction, undoPairAction } from "@/console/review-actions";
 import { t } from "@/i18n";
+import { needsTranslation } from "@/console/format";
 
 /** One pair at a time, side by side; S / N / K on the keyboard. */
 export function ReviewDeck({ pair, tz }: { pair: ReviewPair; tz: string }) {
@@ -86,6 +87,7 @@ function Side({ side, tz }: { side: ReviewSide; tz: string }) {
           {side.topic || side.category ? ` · ${(side.topic ?? side.category ?? "").replace(/_/g, " ")}` : ""}
         </div>
         <p className="text-body text-foreground">{side.textEn ?? side.textOriginal ?? ""}</p>
+        {needsTranslation(side.textEn, side.language) ? <p className="text-caption text-muted-soft">{t("signals.record.untranslated")}</p> : null}
         {side.textEn && side.textOriginal && side.textEn !== side.textOriginal ? <p className="text-caption text-muted-soft">{side.textOriginal}</p> : null}
         <div className="flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
           {side.issueId ? (

@@ -146,6 +146,10 @@ Data and rebuilds
   text records show in German, Greek, French or Italian with no marker
   (`coalesce(text_en, text_original)`). Run normalisation with the model
   before the pilot and show "not translated" when `text_en` is null.
+  **Fixed on `pilot-before`:** every record view says "Not translated yet"
+  when a non-English record has no English text; the wizard's model switch
+  is on whenever a key exists; `docs/deploy.md` tells the operator to run
+  normalisation with the model before the pilot.
 
 Roles and gating
 
@@ -215,6 +219,8 @@ Infrastructure
   created a new pool and the dev database hit 100 connections during this
   review (97 idle). Guard with `globalThis` in development, size `max` for
   the web and worker processes, consider pgbouncer.
+  **Fixed on `pilot-before`:** one pool per process on `globalThis`, sized
+  by `DB_POOL_MAX`; the worker keeps its own `max: 3`.
 
 Words
 
@@ -229,6 +235,9 @@ Words
   developer ("as the generator wrote it", "generated {date} · {version}").
   The settings hint promises "shown on Today when they are late" for the
   export time; Today does not do that.
+  **Fixed on `pilot-before` (the late line):** Today says "the export
+  expected at 06:10 has not arrived yet" once that time has passed in the
+  property's zone with no import since (`isExportLate`).
 
 Phones
 

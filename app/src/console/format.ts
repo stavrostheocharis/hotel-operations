@@ -44,3 +44,8 @@ export function fmtBytes(n: number): string {
   if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
   return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
+
+/** A record in another language whose English text has not been produced yet (rules-only normalisation). */
+export function needsTranslation(textEn: string | null | undefined, language: string | null | undefined): boolean {
+  return !textEn && !!language && language !== "en";
+}
